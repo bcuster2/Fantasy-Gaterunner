@@ -8,7 +8,10 @@ extends RefCounted
 ## Ranged enemies fire while alive. Element multipliers, overkill waste, and allies all apply.
 ##
 ## Policies:  "best"   = takes the highest-scoring gate (CombatMath.gate_score),
-##            "random" = picks gates uniformly (sample many seeds for a median player),
+##            "median" = takes the median-ranked gate (2 options: the weaker one),
+##            "casual" = best gate with probability casual_best_chance, else a random other one
+##                       (sample many seeds to get a win rate),
+##            "random" = picks gates uniformly,
 ##            "worst"  = takes the lowest-scoring gate.
 
 const GROUP_GAP := 12.0
@@ -75,7 +78,10 @@ static func mix_from_events(events: Array, from: int, from_d: float, horizon: fl
 			continue
 		var def: Dictionary = db["enemies"].get(String(event.get("enemy", "grunt")), {})
 		var element := String(event.get("element", "none"))
-		var key := ("ward:" + element) if bool(def.get("immune_unless_weak", false)) else element
+		var immune := bool(def.get("immune_unless_weak", false))
+		if immune and not is_blocking_wall(event, def):
+			continue # a wall with a gap is steered around, so it shouldn't steer element choice
+		var key := ("ward:" + element) if immune else element
 		var weight := float(def.get("hp", 10)) * float(event.get("hp_mult", 1.0)) * Formations.offsets(event).size()
 		mix[key] = float(mix.get(key, 0.0)) + weight
 	if mix.is_empty():
@@ -83,9 +89,23 @@ static func mix_from_events(events: Array, from: int, from_d: float, horizon: fl
 	return mix
 
 
+## An element-locked line spanning the track: the hero must break the piece in its lane.
+static func is_blocking_wall(event: Dictionary, def: Dictionary) -> bool:
+	return bool(def.get("immune_unless_weak", false)) and Formations.offsets(event).size() >= 5
+
+
 static func _choose(gates: Array, s: HeroStats, policy: String, mix: Dictionary, db: Dictionary, limits: Dictionary, rng: RandomNumberGenerator) -> int:
 	if policy == "random":
 		return rng.randi_range(0, gates.size() - 1) if rng else 0
+	if policy in ["median", "casual"]:
+		var ranked: Array = range(gates.size())
+		var scores: Array = ranked.map(func(k: int) -> float: return CombatMath.gate_score(gates[k], s, mix, db["elements"], db["allies"], limits))
+		ranked.sort_custom(func(a: int, b: int) -> bool: return scores[a] > scores[b])
+		if policy == "median":
+			return ranked[gates.size() / 2]
+		if rng == null or rng.randf() < float(limits.get("casual_best_chance", 0.65)) or gates.size() < 2:
+			return ranked[0]
+		return ranked[rng.randi_range(1, gates.size() - 1)]
 	var best := 0
 	var best_score := -INF if policy != "worst" else INF
 	for k in gates.size():
@@ -151,7 +171,7 @@ static func _engage(group: Array, s: HeroStats, policy: String, db: Dictionary, 
 		var budget := maxf(0.0, arrival - time_used)
 
 		# Walls: only the piece in the hero's lane matters when it spans the track.
-		var blocking := immune and n >= 5
+		var blocking := is_blocking_wall(event, def)
 		var targets := 1 if blocking else n
 		if behavior == "static" and not blocking:
 			targets = 0 # gaps can be steered around
@@ -179,10 +199,19 @@ static func _engage(group: Array, s: HeroStats, policy: String, db: Dictionary, 
 
 	# Front-line allies soak part of the leak and die doing it.
 	var soak_share := minf(0.75, front_allies * 0.18)
-	var soaked := leak_damage * soak_share
+	var soaked := minf(leak_damage * soak_share, _front_ally_hp(s, db))
 	_damage_allies(s, soaked, db)
 	s.hp -= (leak_damage - soaked) * dodge + shot_damage
 	return {"kills": kills, "units": units, "coins": coins}
+
+
+static func _front_ally_hp(s: HeroStats, db: Dictionary) -> float:
+	var hp := 0.0
+	for id: String in s.allies:
+		var def: Dictionary = db["allies"].get(id, {})
+		if String(def.get("kind", "melee")) != "ranged":
+			hp += int(s.allies[id]) * float(def.get("hp", 20)) * s.ally_power
+	return hp
 
 
 static func _damage_allies(s: HeroStats, amount: float, db: Dictionary) -> void:

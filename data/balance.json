@@ -29,7 +29,8 @@
 		"resist_multiplier": 0.5,
 		"max_allies": 12,
 		"min_hp_after_curse": 1.0,
-		"low_hp_danger": 30.0
+		"low_hp_danger": 30.0,
+		"casual_best_chance": 0.65
 	},
 	"enemy": {
 		"aggro_range": 24.0,
@@ -82,13 +83,13 @@
 		"_doc": "Difficulty as functions of level N: value = base * (1 + linear * (N-1)^exponent), clamped to cap (0 = no cap). Tune here, then run the simulator to see the effect across levels 1-500.",
 		"enemy_hp": {
 			"base": 1.0,
-			"linear": 0.06,
+			"linear": 0.03,
 			"exponent": 1.12,
 			"cap": 0
 		},
 		"enemy_damage": {
 			"base": 1.0,
-			"linear": 0.025,
+			"linear": 0.02,
 			"exponent": 1.0,
 			"cap": 0
 		},
@@ -143,7 +144,7 @@
 		"boss_every": 10
 	},
 	"generator": {
-		"_doc": "Generator and fairness tuning.",
+		"_doc": "Generator, fairness and difficulty targeting. target_median_score: band for the median-path score (distance fraction if it dies, else 1 + HP left) per level kind; onboarding raises it for the first levels.",
 		"element_unlock_level": 3,
 		"palette_size": 2,
 		"element_chance": 0.75,
@@ -154,11 +155,65 @@
 		"max_repairs": 8,
 		"end_padding": 30.0,
 		"wall_lookback": 140.0,
-		"debug_assume_upgrades": true
+		"debug_assume_upgrades": true,
+		"density_ramp_start": 0.2,
+		"hp_ramp_start": 0.75,
+		"ramp_full_at": 0.6,
+		"max_upscale": 1.4,
+		"max_tune_steps": 6,
+		"tune_down": 0.9,
+		"tune_up": 1.1,
+		"target_median_score": {
+			"normal": [
+				0.62,
+				0.95
+			],
+			"spike": [
+				0.42,
+				0.75
+			],
+			"boss": [
+				0.62,
+				0.95
+			],
+			"reward": [
+				0.95,
+				1.4
+			]
+		},
+		"onboarding_levels": 15,
+		"onboarding_shift": 0.35
 	},
 	"estimator": {
 		"_doc": "Analytic run model used for fairness checks and the simulator. Calibrate against live autopilot runs.",
-		"hero_aim": 0.7,
-		"leak_hit_rate": 1.0
+		"hero_aim": 0.8,
+		"leak_hit_rate": 0.85
+	},
+	"simulator": {
+		"_doc": "Targets for tools/simulate.gd. casual = a player who takes the best gate ~65% of the time.",
+		"casual_samples": 25,
+		"target_casual_win": {
+			"normal": [
+				0.55,
+				0.97
+			],
+			"spike": [
+				0.35,
+				0.9
+			],
+			"reward": [
+				0.75,
+				1.0
+			],
+			"boss": [
+				0.55,
+				0.97
+			]
+		},
+		"max_repair": 0.75,
+		"run_seconds": [
+			35,
+			80
+		]
 	}
 }

@@ -23,6 +23,8 @@ var assume_upgrades := true
 var autopilot := false
 ## Debug: open the dev menu as soon as a run starts (`--open-debug`, handy for screenshots).
 var open_debug_menu := false
+## Tools: skip slow-motion/hit-stop so headless harnesses get results immediately.
+var fast_results := false
 
 
 func _ready() -> void:

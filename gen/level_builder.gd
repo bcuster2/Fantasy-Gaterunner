@@ -39,7 +39,15 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 	var segments_debug: Array = []
 	var cursor := START_OFFSET
 	var previous_id := ""
-	for role: String in slots:
+	# The hero starts every run weak, so crowds and toughness ramp up across the level: early
+	# segments use a fraction of the level's density and HP, the back half uses all of it.
+	var ramp_full := float(gen.get("ramp_full_at", 0.6))
+	for slot_index in slots.size():
+		var role: String = slots[slot_index]
+		var progress := float(slot_index) / maxf(1.0, slots.size() - 1.0)
+		var ramp := smoothstep(0.0, ramp_full, progress)
+		ctx["slot_density_t"] = float(ctx["density_t"]) * lerpf(float(gen.get("density_ramp_start", 0.2)), 1.0, ramp)
+		ctx["slot_hp_mult"] = float(ctx["hp_mult"]) * lerpf(float(gen.get("hp_ramp_start", 0.75)), 1.0, ramp)
 		var seg := _pick_segment(role, level, db, rng, previous_id)
 		if seg.is_empty():
 			continue
@@ -80,16 +88,39 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 	}
 	_sort_events(plan)
 
-	# Winnability: the expected hero taking the best path must finish with HP to spare.
+	# Difficulty targeting + winnability. The curves set the baseline; the estimator then nudges enemy
+	# HP/damage so a median player's score lands inside the target band for this level kind (keeps the
+	# spike/reward rhythm readable and evens out segment luck). Score = distance fraction reached if
+	# the median path dies, else 1 + remaining HP fraction. Finally a hard guarantee: the best path
+	# must survive with a margin, scaling down and thinning crowds if needed.
 	var hero := expected_hero(level, db, balance)
+	var band: Array = (gen.get("target_median_score", {}).get(kind, [0.75, 1.15]) as Array).duplicate()
+	# Onboarding: the first levels aim higher, fading to the normal bands by onboarding_levels.
+	var onboarding := clampf(1.0 - float(level - 1) / maxf(1.0, float(gen.get("onboarding_levels", 15))), 0.0, 1.0)
+	band[0] = float(band[0]) + float(gen.get("onboarding_shift", 0.35)) * onboarding
+	band[1] = float(band[1]) + float(gen.get("onboarding_shift", 0.35)) * onboarding
 	var margin := float(gen.get("min_hp_margin_spike" if kind in ["spike", "boss"] else "min_hp_margin", 0.15))
+	var max_up := float(gen.get("max_upscale", 1.4))
 	var difficulty := 1.0
+	var median_score := median_score_of(plan, hero, db, balance)
+	for tune in int(gen.get("max_tune_steps", 6)):
+		var hp := median_score
+		var step := 1.0
+		if hp < float(band[0]):
+			step = float(gen.get("tune_down", 0.9))
+		elif hp > float(band[1]) and difficulty < max_up:
+			step = minf(float(gen.get("tune_up", 1.1)), max_up / difficulty)
+		if is_equal_approx(step, 1.0):
+			break
+		difficulty *= step
+		_scale_enemies(plan, step)
+		median_score = median_score_of(plan, hero, db, balance)
 	var estimate := Estimator.run(plan, hero, "best", db, balance)
 	var repairs := 0
 	while (not bool(estimate["survived"]) or float(estimate["hp_frac"]) < margin) and repairs < int(gen.get("max_repairs", 8)):
-		var step := float(gen.get("repair_scale", 0.88))
-		difficulty *= step
-		_scale_enemies(plan, step)
+		var repair_step := float(gen.get("repair_scale", 0.88))
+		difficulty *= repair_step
+		_scale_enemies(plan, repair_step)
 		# Weak builds are often shot-limited (one-shotting already), so later repairs thin crowds too.
 		if repairs >= 2:
 			for event: Dictionary in plan["events"]:
@@ -102,11 +133,20 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 		"segments": segments_debug,
 		"fixes": fixes,
 		"difficulty_scale": difficulty,
+		"median_score": median_score_of(plan, hero, db, balance),
 		"estimate": {"survived": estimate["survived"], "hp_frac": estimate["hp_frac"], "kills": estimate["kills"], "units": estimate["units"]},
 		"density_cap": density_cap,
 		"gen_ms": (Time.get_ticks_usec() - started) / 1000.0,
 	}
 	return plan
+
+
+## Difficulty signal: distance fraction if the median gate path dies, else 1 + HP fraction left.
+static func median_score_of(plan: Dictionary, hero: HeroStats, db: Dictionary, balance: Dictionary) -> float:
+	var r := Estimator.run(plan, hero, "median", db, balance)
+	if bool(r["survived"]):
+		return 1.0 + float(r["hp_frac"])
+	return float(r["distance"]) / maxf(float(plan.get("length", 1.0)), 1.0)
 
 
 ## Generator context shared with GateFactory (and the simulator).
@@ -190,7 +230,7 @@ static func _instantiate(src: Dictionary, cursor: float, mirror: bool, swap: boo
 	for key: String in src:
 		var v: Variant = src[key]
 		if key in COUNT_KEYS:
-			e[key] = GenUtil.scaled_int(v, float(ctx["density_t"]))
+			e[key] = GenUtil.scaled_int(v, float(ctx.get("slot_density_t", ctx["density_t"])))
 		elif v is Array and key != "gates":
 			e[key] = GenUtil.value(rng, v)
 		else:
@@ -203,7 +243,7 @@ static func _instantiate(src: Dictionary, cursor: float, mirror: bool, swap: boo
 			e["element"] = _resolve_element(String(src.get("element", "none")), swap, ctx, rng)
 			if String(src.get("element", "")) == "$wall":
 				e["wall"] = true
-			e["hp_mult"] = float(e.get("hp", 1.0)) * float(ctx["hp_mult"])
+			e["hp_mult"] = float(e.get("hp", 1.0)) * float(ctx.get("slot_hp_mult", ctx["hp_mult"]))
 			e["dmg_mult"] = float(ctx["dmg_mult"])
 			e.erase("hp")
 		"gates":

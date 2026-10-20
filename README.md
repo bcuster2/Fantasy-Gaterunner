@@ -4,7 +4,7 @@ A portrait, one-thumb fantasy gate runner for Android (iOS-ready), built in **Go
 The hero auto-runs, you drag to steer, gates rewrite your build, and every level ends in a boss.
 Levels are procedurally generated from data. Level N is the same for every player.
 
-> Status: **Milestone 3: procedural generator** (segment library, seeded assembly, difficulty curves, fairness rules, debug menu). Milestones 1-2 are done.
+> Status: **Milestone 4: simulator and first balance pass** (levels 1-500 validated; see [docs/BALANCE.md](docs/BALANCE.md)). Milestones 1-3 are done.
 
 ## Running
 
@@ -29,6 +29,16 @@ godot --headless --path . res://tools/gen_check.tscn -- --levels=500
 ```bash
 # estimator walkthrough of one level: gate picks and HP after each enemy group
 godot --headless --path . res://tools/gen_check.tscn -- --trace=57
+```
+
+```bash
+# level simulator: best / median / casual gate paths for levels 1-500 -> reports/sim_levels.csv + sim_report.md
+godot --headless --path . res://tools/simulate.tscn -- --from=1 --to=500 --samples=25
+```
+
+```bash
+# calibration: real autopilot playthroughs vs the estimator -> reports/calibration.csv
+godot --headless --path . --fixed-fps 60 res://tools/calibrate.tscn -- --levels=1,10,50,100,250,500
 ```
 
 ## Project structure
@@ -145,9 +155,12 @@ element-locked walls. Each element also adds an on-hit effect: fire burns, ice s
    - every gate set has a safe option (never two harmful gates as the only choice);
    - every element-locked wall's preceding gate set offers its weakness (or one is inserted);
    - enemy density per 25 m window stays under the `max_density` curve.
-7. **Winnability.** `Estimator` runs an expected-upgrade hero (`player_power`/`player_hp` curves) down the
-   best gate path. If the hero dies or ends below the HP margin, enemy HP/damage is scaled down. From
-   the third repair on, crowds are thinned too. The plan records `debug.difficulty_scale`.
+7. **In-level ramp.** Early segments use part of the level's density and HP (every run starts weak).
+8. **Difficulty targeting.** The estimator's median-gate-path score is steered into a band per level kind
+   (`generator.target_median_score`, raised for the first 15 levels) by nudging enemy HP/damage.
+9. **Winnability.** An expected-upgrade hero (`player_power`/`player_hp` curves) on the best gate path
+   must survive with an HP margin. Otherwise enemies are scaled down, and crowds are thinned too from
+   the third repair on. The plan records `debug.difficulty_scale`.
 
 The plan also carries `zone`, `boss`, and `modifiers` for Milestone 5.
 Generation takes about 2 ms per level (budget 50 ms).
@@ -178,9 +191,15 @@ segments that must not flip. Run `tools/gen_check.tscn` afterwards to confirm fa
 All curves live in `balance.json -> curves`, as `value = base * (1 + linear * (N-1)^exponent)` with an
 optional `cap`. The `rhythm` section sets the spike/reward/boss cadence. The `generator` section holds
 fairness margins and repair strength, and `estimator` holds the analytic model's assumptions. After
-changing anything, run `gen_check` and look at `difficulty_scale` in `reports/gen_check.csv`. Values
-well below 1.0 mean the curves outpace the expected player. The Milestone 4 simulator adds win-rate and
-coin reports.
+changing anything:
+
+1. Run `tools/simulate.tscn` and read `reports/sim_report.md`: casual win rate per 50-level band, spike
+   and reward rhythm, coins, and flagged levels (BROKEN / HARD / EASY / REPAIRED / SHORT / LONG).
+2. An average `repair scale` near 1.0 means the curves fit the expected player; well below 1.0 means
+   enemies outpace upgrades.
+3. Run `tools/calibrate.tscn` occasionally to confirm the estimator still matches real playthroughs.
+
+See [docs/BALANCE.md](docs/BALANCE.md) for the targets and the pass-1 results.
 
 ## Performance notes
 

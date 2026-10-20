@@ -5,6 +5,9 @@ extends Node3D
 
 enum State { RUNNING, DEAD, WON }
 
+## Emitted once when the run ends: { won, level, distance, hp, hp_frac, kills, units, coins, time }.
+signal finished(result: Dictionary)
+
 const SPAWN_AHEAD := 70.0
 
 var plan: Dictionary
@@ -493,6 +496,9 @@ func _on_hero_died() -> void:
 	camera.add_trauma(1.0)
 	AudioManager.play("lose", 0.0, 0.0)
 	_log_result("DIED")
+	finished.emit(_result(false))
+	if GameState.fast_results:
+		return
 	Engine.time_scale = Balance.f("feel.death_slowmo_scale")
 	await get_tree().create_timer(Balance.f("feel.death_slowmo_time"), true, false, true).timeout
 	Engine.time_scale = 1.0
@@ -507,6 +513,19 @@ func _win() -> void:
 		bursts.burst(hero.position + Vector3(randf_range(-3, 3), 2.0, -2.0), [Color("#FFD166"), Color("#3FA9FF"), Color("#FF6B6B"), Color("#7CF29A")][i])
 	hud.show_result(true, _summary(), int(plan.get("level", 0)) > 0)
 	_log_result("WON")
+	finished.emit(_result(true))
+
+
+func _result(won: bool) -> Dictionary:
+	var units := 0
+	for event: Dictionary in _events:
+		if String(event.get("type", "")) == "enemies":
+			units += Formations.offsets(event).size()
+	return {
+		"won": won, "level": int(plan.get("level", 0)), "distance": minf(-hero.position.z, _length),
+		"hp": hero.stats.hp, "hp_frac": hero.stats.hp / maxf(hero.stats.max_hp, 1.0),
+		"kills": kills, "units": units, "coins": coins, "time": _elapsed, "damage_log": _damage_log.duplicate(),
+	}
 
 
 func _summary() -> String:
@@ -584,7 +603,7 @@ func _restart() -> void:
 
 
 func _hit_stop(duration: float) -> void:
-	if duration <= 0.0 or Engine.time_scale < 1.0:
+	if duration <= 0.0 or Engine.time_scale < 1.0 or GameState.fast_results:
 		return
 	Engine.time_scale = 0.05
 	await get_tree().create_timer(duration, true, false, true).timeout
@@ -620,39 +639,55 @@ func _build_environment() -> void:
 
 # --- Dev autopilot ----------------------------------------------------------------------------
 
-## Expected enemy element mix over the next stretch, weighted by HP. Wards count as "ward:<el>".
+## Expected enemy element mix over the next stretch (same rules as the Estimator).
 func upcoming_mix(horizon: float) -> Dictionary:
-	var mix := {}
 	var here := -hero.position.z
-	for e in enemies:
-		if e.active and e.position.z < hero.position.z:
-			var key := ("ward:" + e.element) if e.immune_unless_weak else e.element
-			mix[key] = float(mix.get(key, 0.0)) + e.hp
-	for k in range(_next_event, _events.size()):
-		var event: Dictionary = _events[k]
-		if float(event["d"]) > here + horizon:
-			break
-		if String(event.get("type", "")) != "enemies":
-			continue
-		var def := Content.enemy(String(event.get("enemy", "grunt")))
-		var element := String(event.get("element", "none"))
-		var key := ("ward:" + element) if bool(def.get("immune_unless_weak", false)) else element
-		var weight := float(def.get("hp", 10)) * float(event.get("hp_mult", 1.0)) * Formations.offsets(event).size()
-		mix[key] = float(mix.get(key, 0.0)) + weight
-	if mix.is_empty():
-		mix["none"] = 1.0
-	return mix
+	var start := 0
+	while start < _events.size() and float(_events[start]["d"]) < here:
+		start += 1
+	return Estimator.mix_from_events(_events, start, here, horizon, Content.db)
 
 
-## Dev-only bot: heads for the best-scoring gate lane, dodges enemy shots crudely by lining up
-## with the nearest enemy otherwise.
+## Dev bot (also drives tools/calibrate): avoids wall pieces first, then heads for the best-scoring
+## gate lane, otherwise lines up with the nearest mobile enemy. It never dodges shots, so it plays a
+## little worse than a careful human.
 func _autopilot() -> void:
+	# 1. Wall pieces ahead or alongside: take the gap; with no gap, break one piece.
+	var blockers: Array[float] = []
+	var weakest: Enemy = null
+	for e in enemies:
+		var ahead := hero.position.z - e.position.z
+		if e.active and e.behavior == "static" and ahead > -1.5 and ahead < 14.0:
+			blockers.append(e.position.x)
+			if weakest == null or e.hp < weakest.hp:
+				weakest = e
+	if not blockers.is_empty():
+		var best_x := hero.target_x
+		var best_clear := -INF
+		for step in 18:
+			var x := -3.4 + step * 0.4
+			var clear := INF
+			for bx in blockers:
+				clear = minf(clear, absf(bx - x))
+			# Prefer staying close to the current line when clearances tie.
+			var score := clear - absf(x - hero.position.x) * 0.05
+			if score > best_clear:
+				best_clear = score
+				best_x = x
+		var gap := INF
+		for bx in blockers:
+			gap = minf(gap, absf(bx - best_x))
+		if gap < weakest.radius + hero.radius:
+			best_x = weakest.position.x
+		hero.target_x = best_x
+		return
+	# 2. Gate choice.
 	var nearest_gate: GateSet = null
 	for gate_set in gate_sets:
 		if hero.position.z - gate_set.position.z < 40.0 and (nearest_gate == null or gate_set.position.z > nearest_gate.position.z):
 			nearest_gate = gate_set
 	if nearest_gate:
-		var mix := upcoming_mix(120.0)
+		var mix := upcoming_mix(Estimator.MIX_HORIZON)
 		var best_lane := 0
 		var best_score := -INF
 		for lane in nearest_gate.gates.size():
@@ -662,9 +697,10 @@ func _autopilot() -> void:
 				best_lane = lane
 		hero.target_x = nearest_gate.lane_center(best_lane)
 		return
+	# 3. Line up with the nearest mobile enemy (static and ranged ones get aim assist).
 	var nearest: Enemy = null
 	for e in enemies:
-		if e.active and e.behavior != "ranged" and e.position.z < hero.position.z and (nearest == null or e.position.z > nearest.position.z):
+		if e.active and e.behavior != "ranged" and e.behavior != "static" and e.position.z < hero.position.z and (nearest == null or e.position.z > nearest.position.z):
 			nearest = e
 	if nearest:
 		hero.target_x = clampf(nearest.position.x, -3.4, 3.4)
