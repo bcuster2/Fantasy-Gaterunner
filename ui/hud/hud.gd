@@ -12,6 +12,11 @@ var _hp_text: Label
 var _coin_label: Label
 var _coin_chip: Control
 var _progress: ProgressBar
+var _element_chip: PanelContainer
+var _element_icon: TextureRect
+var _element_label: Label
+var _ally_chip: PanelContainer
+var _ally_label: Label
 var _chips: Dictionary = {}
 var _chip_values: Dictionary = {}
 var _flash: ColorRect
@@ -83,6 +88,20 @@ func set_stats(stats: HeroStats, changed_stat := "", good := true) -> void:
 		_punch(chip, 1.3)
 		chip.modulate = Color(0.5, 1.6, 0.6) if good else Color(1.8, 0.5, 0.5)
 		create_tween().tween_property(chip, "modulate", Color.WHITE, 0.5)
+
+
+func set_element(element: String) -> void:
+	_element_icon.texture = Content.element_icon(element)
+	_element_icon.visible = _element_icon.texture != null
+	_element_label.text = Content.element_name(element)
+	_element_label.modulate = Content.element_color(element).lightened(0.3)
+	_punch(_element_chip, 1.2)
+
+
+func set_allies(count: int, cap: int) -> void:
+	_ally_label.text = "ALLIES  %d/%d" % [count, cap]
+	_ally_label.modulate = Color("#7CF2B8") if count > 0 else UiTheme.MUTED
+	_punch(_ally_chip, 1.15)
 
 
 func flash(color: Color, strength: float) -> void:
@@ -174,6 +193,37 @@ func _build_top_bar(root: Control) -> void:
 
 	_progress = _make_bar(Color("#FFD166"), 20)
 	column.add_child(_progress)
+
+	var badges := HBoxContainer.new()
+	badges.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	badges.add_theme_constant_override("separation", 16)
+	column.add_child(badges)
+	_element_chip = _small_chip()
+	badges.add_child(_element_chip)
+	var element_row := HBoxContainer.new()
+	element_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	element_row.add_theme_constant_override("separation", 10)
+	_element_chip.add_child(element_row)
+	_element_icon = TextureRect.new()
+	_element_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_element_icon.custom_minimum_size = Vector2(54, 54)
+	_element_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_element_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	element_row.add_child(_element_icon)
+	_element_label = Label.new()
+	_element_label.add_theme_font_size_override("font_size", 36)
+	element_row.add_child(_element_label)
+	var spacer := Control.new()
+	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	badges.add_child(spacer)
+	_ally_chip = _small_chip()
+	badges.add_child(_ally_chip)
+	_ally_label = Label.new()
+	_ally_label.add_theme_font_size_override("font_size", 36)
+	_ally_chip.add_child(_ally_label)
+	set_element("none")
+	set_allies(0, 12)
 
 
 func _build_stat_chips(root: Control) -> void:
@@ -273,6 +323,14 @@ func _show_overlay(title: String, body: String, buttons: Array) -> void:
 	_overlay.visible = true
 	_overlay.modulate.a = 0.0
 	create_tween().tween_property(_overlay, "modulate:a", 1.0, 0.25)
+
+
+func _small_chip() -> PanelContainer:
+	var chip := PanelContainer.new()
+	chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	chip.add_theme_stylebox_override("panel", UiTheme.box(UiTheme.PANEL, 22, 12))
+	chip.resized.connect(func() -> void: chip.pivot_offset = chip.size * 0.5)
+	return chip
 
 
 func _make_bar(fill: Color, height: float) -> ProgressBar:

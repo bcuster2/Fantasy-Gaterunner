@@ -1,0 +1,24 @@
+{
+	"_doc": "Elements. An enemy of element X takes weak_multiplier damage from X.weak_to and resist_multiplier from X itself. The icon shown above an enemy is its weakness. effect = on-hit bonus when the hero/allies attack with this element.",
+	"fire": {
+		"name": "FIRE",
+		"color": "#FF7A2F",
+		"icon": "res://assets/icons/fire.svg",
+		"weak_to": "ice",
+		"effect": { "type": "burn", "fraction": 0.35, "duration": 1.5 }
+	},
+	"ice": {
+		"name": "ICE",
+		"color": "#7FDBFF",
+		"icon": "res://assets/icons/ice.svg",
+		"weak_to": "lightning",
+		"effect": { "type": "slow", "amount": 0.45, "duration": 1.2 }
+	},
+	"lightning": {
+		"name": "LIGHTNING",
+		"color": "#FFE24A",
+		"icon": "res://assets/icons/lightning.svg",
+		"weak_to": "fire",
+		"effect": { "type": "chain", "fraction": 0.5, "radius": 3.0, "targets": 1 }
+	}
+}

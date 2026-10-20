@@ -1,0 +1,45 @@
+{
+	"_doc": "Summonable allies. They run in formation with the hero and attack with the hero's current element. row: front | back. kind: melee | ranged. contact_damage = damage dealt to an enemy that runs into them.",
+	"skeleton": {
+		"name": "Skeleton",
+		"plural": "SKELETONS",
+		"model": "skeleton",
+		"kind": "melee",
+		"row": "front",
+		"hp": 40,
+		"damage": 6,
+		"attack_rate": 1.6,
+		"range": 1.7,
+		"contact_damage": 10,
+		"radius": 0.4,
+		"scale": 0.95
+	},
+	"archer": {
+		"name": "Skeleton Archer",
+		"plural": "ARCHERS",
+		"model": "skeleton_archer",
+		"kind": "ranged",
+		"row": "back",
+		"hp": 16,
+		"damage": 4,
+		"attack_rate": 1.3,
+		"range": 26,
+		"contact_damage": 4,
+		"radius": 0.4,
+		"scale": 0.9
+	},
+	"golem": {
+		"name": "Stone Golem",
+		"plural": "GOLEMS",
+		"model": "golem",
+		"kind": "melee",
+		"row": "front",
+		"hp": 140,
+		"damage": 16,
+		"attack_rate": 0.7,
+		"range": 2.0,
+		"contact_damage": 28,
+		"radius": 0.65,
+		"scale": 1.35
+	}
+}

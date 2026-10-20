@@ -40,10 +40,29 @@ func setup(gate_list: Array, track_width: float) -> void:
 		pane.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 		panel.add_child(pane)
 
-		var value := _make_text(GateInfo.value_text(gate), 150, height * 0.66)
-		var stat := _make_text(GateInfo.stat_text(gate), 70, height * 0.33)
-		panel.add_child(value)
-		panel.add_child(stat)
+		match GateInfo.kind(gate):
+			"element":
+				var icon := Sprite3D.new()
+				icon.texture = Content.element_icon(String(gate.get("element", "")))
+				icon.pixel_size = minf(1.3, _panel_width * 0.5) / 128.0
+				icon.position = Vector3(0, height * 0.64, 0.06)
+				icon.no_depth_test = true
+				icon.render_priority = 6
+				panel.add_child(icon)
+				panel.add_child(_make_text(GateInfo.value_text(gate), 80, height * 0.26))
+			"curse":
+				var header := _make_text("CURSED", 70, height + 0.45)
+				header.modulate = Color("#E2B8FF")
+				panel.add_child(header)
+				var gains := _make_text(GateInfo.value_text(gate), 96, height * 0.66)
+				gains.modulate = Color("#C8FFB8")
+				panel.add_child(gains)
+				var costs := _make_text(GateInfo.stat_text(gate), 80, height * 0.3)
+				costs.modulate = Color("#FFB0B0")
+				panel.add_child(costs)
+			_:
+				panel.add_child(_make_text(GateInfo.value_text(gate), 150, height * 0.66))
+				panel.add_child(_make_text(GateInfo.stat_text(gate), 70, height * 0.33))
 
 	# Posts between and at the edges of panels.
 	var post_mat := Placeholders.mat(Color("#D9D2C3"))
@@ -80,6 +99,8 @@ func trigger(lane: int) -> void:
 			if child is Label3D:
 				tween.tween_property(child, "modulate:a", 0.0, fade * 1.2)
 				tween.tween_property(child, "outline_modulate:a", 0.0, fade * 1.2)
+			elif child is Sprite3D:
+				tween.tween_property(child, "modulate:a", 0.0, fade * 1.2)
 	get_tree().create_timer(2.0).timeout.connect(queue_free)
 
 
@@ -88,7 +109,10 @@ func _make_text(text: String, font_size: int, y: float) -> Label3D:
 	l.text = text
 	l.font_size = font_size
 	# Shrink to fit narrow panels (three-gate rows).
-	var estimated_px := maxf(1.0, text.length() * 0.62 * font_size)
+	var longest := 1
+	for line in text.split("\n"):
+		longest = maxi(longest, line.length())
+	var estimated_px := maxf(1.0, longest * 0.62 * font_size)
 	l.pixel_size = minf(0.0075, (_panel_width - 0.5) / estimated_px)
 	l.position = Vector3(0, y, 0.06)
 	l.no_depth_test = true

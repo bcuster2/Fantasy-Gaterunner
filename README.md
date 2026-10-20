@@ -4,7 +4,7 @@ A portrait, one-thumb fantasy gate runner for Android (iOS-ready), built in **Go
 The hero auto-runs, you drag to steer, gates rewrite your build, and every level ends in a boss.
 Levels are procedurally generated from data. Level N is the same for every player.
 
-> Status: **Milestone 1: core loop** (running, steering, auto-attack, one enemy, stat gates, hand-made test level).
+> Status: **Milestone 2: gates and enemies** (elemental, summoning, and cursed gates; six enemy types; allies). Milestone 1 core loop is done.
 
 ## Running
 
@@ -30,10 +30,12 @@ autoload/        Global singletons (registered in project.godot)
   level_generator.gd LevelGenerator: produces LevelPlans (M1: serves the test level)
 core/
   run/             Run scene: owns world, pools, and the per-frame update order
-  hero/            Hero node + HeroStats (pure stats, reused by the simulator)
-  enemy/           Pooled Enemy node
-  gates/           GateSet (visual + crossing), GateInfo (text/colors/scoring)
-  combat/          ProjectileSystem: all projectiles as packed data in one MultiMesh
+  hero/            Hero node + HeroStats (pure build state: stats, element, ally counts)
+  enemy/           Pooled Enemy node (behaviors: walker, charger, ranged, weaver, static)
+  ally/            Ally node + Squad (formation, pooling, attack decisions)
+  gates/           GateSet (visual + crossing), GateInfo (text/colors/classification)
+  combat/          CombatMath (pure element/power rules), ProjectileSystem (friendly shots,
+                   one MultiMesh), EnemyShots (hostile shots to dodge)
   fx/              CameraRig (trauma shake), DamageNumbers, BurstPool
   visuals/         Placeholders: code-built low-poly models with shared meshes/materials
   shaders/         Ground, gate, and checker shaders
@@ -43,6 +45,8 @@ data/              All content and tuning as JSON
   balance.json     The one balance/tuning file
   classes.json     Hero classes (one in v1; add more here)
   enemies.json     Enemy archetypes
+  allies.json      Summonable allies
+  elements.json    Elements: color, icon, weakness triangle, on-hit effect
   levels/          Hand-made levels (M1 test level)
 ui/                HUD and shared theme (built in code)
 tools/             Headless tools (simulator arrives in M4)
@@ -60,8 +64,42 @@ The Run scene consumes a plan of events sorted by distance `d` (meters). The M3 
 ] }
 ```
 
-Formations: `line` (count), `block` (rows, cols), `wedge` (rows), `column` (count). Optional `spacing`, `x`.
-Gate stats: `damage`, `fire_rate`, `projectiles`. Ops: `add`, `mul`. Negative/below-1 values are harmful gates (red).
+Formations: `line` (count), `block` (rows, cols), `wedge` (rows), `column` (count). Optional `spacing`, `x`, `element`, `hp_mult`.
+
+### Gate kinds
+
+| kind | schema | color |
+|---|---|---|
+| `stat` (default) | `{stat, op, value}`. stat: `damage`, `fire_rate`, `projectiles`, `hp` (heal), `max_hp` | blue if good, red if harmful |
+| `element` | `{kind, element}`. Sets the hero's (and allies') attack element | element color + icon |
+| `summon` | `{kind, ally, count}`. Adds allies, capped at `combat.max_allies` | green |
+| `curse` | `{kind, effects:[{stat, op, value}...]}`. Risk/reward; extra stats `hp_pct`, `allies_pct` | purple, "CURSED" header |
+
+### Elements
+
+An enemy's element sets its **weakness** (2× damage, the icon floating over its head) and its **resistance**
+(0.5× from its own element). The triangle in `elements.json`: fire enemies are weak to ice, ice to lightning,
+lightning to fire. Wards (`immune_unless_weak`) take damage **only** from their weakness, so they act as
+element-locked walls. Each element also adds an on-hit effect: fire burns, ice slows, lightning chains.
+
+### Enemies
+
+| id | behavior | role |
+|---|---|---|
+| `grunt` | walker | baseline goblin crowd |
+| `runner` | charger | fast wolves, punish late reactions |
+| `brute` | walker | slow, tanky, hits hard |
+| `archer` | ranged | stands still, winds up (glows), fires dodgeable bolts |
+| `imp` | weaver | flies in a sine path across lanes |
+| `ward` | static | element-locked wall piece |
+
+### Adding content
+
+- **Enemy:** add an entry to `data/enemies.json` (`behavior` picks an existing AI; `model` picks a placeholder
+  builder in `core/visuals/placeholders.gd`). It's usable from any level event immediately.
+- **Ally:** add an entry to `data/allies.json` (`kind` melee/ranged, `row` front/back), then use it in a summon gate.
+- **Element:** add an entry to `data/elements.json` with an icon SVG in `assets/icons/`, and keep the weakness
+  triangle closed.
 
 ## Performance notes
 

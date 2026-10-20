@@ -1,40 +1,346 @@
 {
-	"_doc": "Hand-made Milestone 1 test level. Same event schema the generator will emit. d = distance from start in meters.",
+	"_doc": "Hand-made test level exercising every gate kind and enemy type. Same event schema the generator emits. d = distance from start in meters. Element triangle: fire enemies are weak to ice, ice to lightning, lightning to fire.",
 	"id": "test_level",
 	"name": "Proving Grounds",
-	"length": 430,
+	"length": 560,
 	"events": [
-		{ "d": 30,  "type": "enemies", "enemy": "grunt", "formation": "line", "count": 3 },
-		{ "d": 50,  "type": "gates", "gates": [
-			{ "stat": "damage", "op": "add", "value": 3 },
-			{ "stat": "projectiles", "op": "add", "value": 1 }
-		] },
-		{ "d": 75,  "type": "enemies", "enemy": "grunt", "formation": "block", "rows": 2, "cols": 3 },
-		{ "d": 100, "type": "gates", "gates": [
-			{ "stat": "fire_rate", "op": "mul", "value": 1.5 },
-			{ "stat": "damage", "op": "add", "value": -2 }
-		] },
-		{ "d": 122, "type": "enemies", "enemy": "grunt", "formation": "wedge", "rows": 3 },
-		{ "d": 140, "type": "enemies", "enemy": "grunt", "formation": "column", "count": 4, "x": -2.5 },
-		{ "d": 146, "type": "enemies", "enemy": "grunt", "formation": "column", "count": 4, "x": 2.5 },
-		{ "d": 170, "type": "gates", "gates": [
-			{ "stat": "projectiles", "op": "add", "value": 1 },
-			{ "stat": "damage", "op": "mul", "value": 2 },
-			{ "stat": "fire_rate", "op": "add", "value": -1 }
-		] },
-		{ "d": 200, "type": "enemies", "enemy": "grunt", "formation": "block", "rows": 3, "cols": 4, "hp_mult": 1.5 },
-		{ "d": 232, "type": "enemies", "enemy": "grunt", "formation": "column", "count": 5, "x": 2.5, "hp_mult": 1.5 },
-		{ "d": 240, "type": "enemies", "enemy": "grunt", "formation": "column", "count": 5, "x": -2.5, "hp_mult": 1.5 },
-		{ "d": 268, "type": "gates", "gates": [
-			{ "stat": "fire_rate", "op": "mul", "value": 2 },
-			{ "stat": "damage", "op": "add", "value": 5 }
-		] },
-		{ "d": 295, "type": "enemies", "enemy": "grunt", "formation": "block", "rows": 4, "cols": 5, "hp_mult": 2.0 },
-		{ "d": 325, "type": "gates", "gates": [
-			{ "stat": "projectiles", "op": "add", "value": -1 },
-			{ "stat": "projectiles", "op": "add", "value": 2 }
-		] },
-		{ "d": 350, "type": "enemies", "enemy": "grunt", "formation": "wedge", "rows": 4, "hp_mult": 2.5 },
-		{ "d": 385, "type": "enemies", "enemy": "grunt", "formation": "block", "rows": 4, "cols": 6, "hp_mult": 3.0, "spacing": 1.15 }
+		{
+			"d": 28,
+			"type": "enemies",
+			"enemy": "grunt",
+			"formation": "line",
+			"count": 4
+		},
+		{
+			"d": 48,
+			"type": "gates",
+			"gates": [
+				{
+					"stat": "damage",
+					"op": "add",
+					"value": 3
+				},
+				{
+					"kind": "summon",
+					"ally": "skeleton",
+					"count": 2
+				}
+			]
+		},
+		{
+			"d": 72,
+			"type": "enemies",
+			"enemy": "runner",
+			"formation": "line",
+			"count": 4,
+			"spacing": 1.6
+		},
+		{
+			"d": 98,
+			"type": "gates",
+			"gates": [
+				{
+					"kind": "element",
+					"element": "fire"
+				},
+				{
+					"kind": "element",
+					"element": "ice"
+				},
+				{
+					"kind": "element",
+					"element": "lightning"
+				}
+			]
+		},
+		{
+			"d": 120,
+			"type": "enemies",
+			"enemy": "grunt",
+			"formation": "block",
+			"rows": 2,
+			"cols": 3,
+			"element": "ice"
+		},
+		{
+			"d": 140,
+			"type": "enemies",
+			"enemy": "archer",
+			"formation": "line",
+			"count": 2,
+			"spacing": 5.5,
+			"element": "lightning"
+		},
+		{
+			"d": 146,
+			"type": "enemies",
+			"enemy": "grunt",
+			"formation": "column",
+			"count": 3,
+			"element": "fire"
+		},
+		{
+			"d": 158,
+			"type": "gates",
+			"gates": [
+				{
+					"stat": "projectiles",
+					"op": "add",
+					"value": 1
+				},
+				{
+					"stat": "damage",
+					"op": "add",
+					"value": 4
+				}
+			]
+		},
+		{
+			"d": 180,
+			"type": "gates",
+			"gates": [
+				{
+					"kind": "summon",
+					"ally": "archer",
+					"count": 2
+				},
+				{
+					"stat": "fire_rate",
+					"op": "mul",
+					"value": 1.5
+				}
+			]
+		},
+		{
+			"d": 192,
+			"type": "enemies",
+			"enemy": "imp",
+			"formation": "line",
+			"count": 3,
+			"spacing": 2.4,
+			"element": "lightning"
+		},
+		{
+			"d": 204,
+			"type": "enemies",
+			"enemy": "imp",
+			"formation": "line",
+			"count": 3,
+			"spacing": 2.4,
+			"element": "lightning",
+			"x": 0.6
+		},
+		{
+			"d": 225,
+			"type": "enemies",
+			"enemy": "brute",
+			"formation": "line",
+			"count": 1,
+			"element": "fire",
+			"hp_mult": 1.0
+		},
+		{
+			"d": 230,
+			"type": "enemies",
+			"enemy": "grunt",
+			"formation": "wedge",
+			"rows": 2,
+			"element": "fire"
+		},
+		{
+			"d": 258,
+			"type": "gates",
+			"gates": [
+				{
+					"kind": "curse",
+					"effects": [
+						{
+							"stat": "hp_pct",
+							"op": "add",
+							"value": -30
+						},
+						{
+							"stat": "damage",
+							"op": "mul",
+							"value": 3
+						}
+					]
+				},
+				{
+					"stat": "projectiles",
+					"op": "add",
+					"value": 1
+				}
+			]
+		},
+		{
+			"d": 282,
+			"type": "gates",
+			"gates": [
+				{
+					"kind": "element",
+					"element": "ice"
+				},
+				{
+					"kind": "element",
+					"element": "lightning"
+				}
+			]
+		},
+		{
+			"d": 312,
+			"type": "enemies",
+			"enemy": "ward",
+			"formation": "line",
+			"count": 6,
+			"spacing": 1.3,
+			"element": "fire",
+			"hp_mult": 1.2
+		},
+		{
+			"d": 340,
+			"type": "gates",
+			"gates": [
+				{
+					"kind": "summon",
+					"ally": "golem",
+					"count": 1
+				},
+				{
+					"stat": "damage",
+					"op": "add",
+					"value": 4
+				},
+				{
+					"stat": "fire_rate",
+					"op": "add",
+					"value": -1
+				}
+			]
+		},
+		{
+			"d": 365,
+			"type": "enemies",
+			"enemy": "brute",
+			"formation": "line",
+			"count": 2,
+			"spacing": 3.0,
+			"element": "ice",
+			"hp_mult": 1.2
+		},
+		{
+			"d": 370,
+			"type": "enemies",
+			"enemy": "grunt",
+			"formation": "block",
+			"rows": 2,
+			"cols": 5,
+			"element": "ice",
+			"hp_mult": 1.2
+		},
+		{
+			"d": 400,
+			"type": "enemies",
+			"enemy": "archer",
+			"formation": "line",
+			"count": 3,
+			"spacing": 3.0,
+			"element": "fire",
+			"hp_mult": 1.2
+		},
+		{
+			"d": 408,
+			"type": "enemies",
+			"enemy": "runner",
+			"formation": "block",
+			"rows": 2,
+			"cols": 3,
+			"spacing": 1.5,
+			"hp_mult": 1.5
+		},
+		{
+			"d": 432,
+			"type": "gates",
+			"gates": [
+				{
+					"kind": "curse",
+					"effects": [
+						{
+							"stat": "allies_pct",
+							"op": "add",
+							"value": -50
+						},
+						{
+							"stat": "fire_rate",
+							"op": "mul",
+							"value": 2
+						}
+					]
+				},
+				{
+					"kind": "summon",
+					"ally": "skeleton",
+					"count": 3
+				}
+			]
+		},
+		{
+			"d": 455,
+			"type": "gates",
+			"gates": [
+				{
+					"kind": "element",
+					"element": "fire"
+				},
+				{
+					"stat": "hp",
+					"op": "add",
+					"value": 40
+				}
+			]
+		},
+		{
+			"d": 485,
+			"type": "enemies",
+			"enemy": "imp",
+			"formation": "line",
+			"count": 4,
+			"spacing": 1.8,
+			"element": "lightning",
+			"hp_mult": 1.5
+		},
+		{
+			"d": 505,
+			"type": "enemies",
+			"enemy": "grunt",
+			"formation": "block",
+			"rows": 4,
+			"cols": 3,
+			"x": -2.0,
+			"element": "lightning",
+			"hp_mult": 1.8,
+			"spacing": 1.1
+		},
+		{
+			"d": 505,
+			"type": "enemies",
+			"enemy": "grunt",
+			"formation": "block",
+			"rows": 4,
+			"cols": 3,
+			"x": 2.0,
+			"element": "ice",
+			"hp_mult": 1.8,
+			"spacing": 1.1
+		},
+		{
+			"d": 530,
+			"type": "enemies",
+			"enemy": "brute",
+			"formation": "line",
+			"count": 1,
+			"element": "lightning",
+			"hp_mult": 1.8
+		}
 	]
 }

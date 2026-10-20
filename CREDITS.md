@@ -13,3 +13,4 @@ free-for-commercial-use assets are allowed.
 - 3D models: built in code from primitive meshes (`core/visuals/placeholders.gd`). Original, no license required.
 - Sound effects: synthesized at runtime (`autoload/audio_manager.gd`). Original, no license required.
 - Shaders: original (`core/shaders/`).
+- Element icons (`assets/icons/*.svg`): original, hand-written SVG.

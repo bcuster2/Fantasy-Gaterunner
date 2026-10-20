@@ -1,12 +1,16 @@
 class_name HeroStats
 extends RefCounted
-## Pure combat stats, shared by the live hero and the headless simulator (no nodes, no autoloads).
+## Pure build state, shared by the live hero and the headless simulator (no nodes, no autoloads).
+## The live allies are reconciled to `allies` by the Squad node.
 
 var max_hp := 100.0
 var hp := 100.0
 var damage := 5.0
 var fire_rate := 3.0
 var projectiles := 1
+var element := "none"
+## ally id -> count
+var allies: Dictionary = {}
 
 
 static func from_class(def: Dictionary) -> HeroStats:
@@ -16,6 +20,7 @@ static func from_class(def: Dictionary) -> HeroStats:
 	s.damage = float(def.get("damage", 5))
 	s.fire_rate = float(def.get("fire_rate", 3.0))
 	s.projectiles = int(def.get("projectiles", 1))
+	s.element = String(def.get("element", "none"))
 	return s
 
 
@@ -26,21 +31,78 @@ func copy() -> HeroStats:
 	s.damage = damage
 	s.fire_rate = fire_rate
 	s.projectiles = projectiles
+	s.element = element
+	s.allies = allies.duplicate()
 	return s
 
 
+## Gate kinds: "stat" (default, single effect), "element", "summon", "curse" (list of effects).
 ## limits = the "combat" section of balance.json.
 func apply_gate(gate: Dictionary, limits: Dictionary) -> void:
-	var op := String(gate.get("op", "add"))
-	var value := float(gate.get("value", 0))
-	match String(gate.get("stat", "")):
+	match String(gate.get("kind", "stat")):
+		"element":
+			element = String(gate.get("element", "none"))
+		"summon":
+			add_allies(String(gate.get("ally", "")), int(gate.get("count", 1)), int(limits.get("max_allies", 12)))
+		"curse":
+			for effect: Dictionary in gate.get("effects", []):
+				apply_effect(effect, limits)
+		_:
+			apply_effect(gate, limits)
+	clamp_to(limits)
+
+
+## Effect = { stat, op ("add" | "mul"), value }. Stats: damage, fire_rate, projectiles, hp (heal),
+## max_hp, hp_pct (percent of max HP, curses use negatives), allies_pct (percent of every ally group).
+func apply_effect(effect: Dictionary, limits: Dictionary) -> void:
+	var op := String(effect.get("op", "add"))
+	var value := float(effect.get("value", 0))
+	match String(effect.get("stat", "")):
 		"damage":
 			damage = _apply(damage, op, value)
 		"fire_rate":
 			fire_rate = _apply(fire_rate, op, value)
 		"projectiles":
 			projectiles = int(roundf(_apply(projectiles, op, value)))
-	clamp_to(limits)
+		"hp":
+			hp = minf(max_hp, _apply(hp, op, value))
+		"max_hp":
+			var old_max := max_hp
+			max_hp = maxf(1.0, _apply(max_hp, op, value))
+			hp = clampf(hp + (max_hp - old_max), 1.0, max_hp)
+		"hp_pct":
+			var floor_hp := float(limits.get("min_hp_after_curse", 1.0))
+			hp = clampf(hp + max_hp * value / 100.0, floor_hp, max_hp)
+		"allies_pct":
+			for id: String in allies.keys():
+				allies[id] = maxi(0, int(floor(int(allies[id]) * (1.0 + value / 100.0))))
+				if allies[id] == 0:
+					allies.erase(id)
+
+
+func add_allies(id: String, count: int, cap: int) -> int:
+	if id.is_empty():
+		return 0
+	var room := maxi(0, cap - ally_count())
+	var added := mini(count, room)
+	if added > 0:
+		allies[id] = int(allies.get(id, 0)) + added
+	return added
+
+
+func remove_ally(id: String) -> void:
+	if not allies.has(id):
+		return
+	allies[id] = int(allies[id]) - 1
+	if int(allies[id]) <= 0:
+		allies.erase(id)
+
+
+func ally_count() -> int:
+	var n := 0
+	for id: String in allies:
+		n += int(allies[id])
+	return n
 
 
 func clamp_to(limits: Dictionary) -> void:

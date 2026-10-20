@@ -159,7 +159,7 @@ static func make_wizard(robe: Color) -> Node3D:
 
 
 ## Enemies face +Z (toward the hero/camera).
-static func make_goblin(skin: Color) -> Node3D:
+static func make_goblin(skin: Color, with_club := true) -> Node3D:
 	var root := Node3D.new()
 	root.name = "Model"
 	var skin_mat := mat(skin)
@@ -170,15 +170,174 @@ static func make_goblin(skin: Color) -> Node3D:
 	var eye := mat(Color("#FFE14D"), 1.5)
 	root.add_child(part(sphere(0.06), eye, Vector3(-0.11, 1.1, 0.26)))
 	root.add_child(part(sphere(0.06), eye, Vector3(0.11, 1.1, 0.26)))
-	root.add_child(part(cylinder(0.07, 0.11, 0.6, 6), mat(WOOD), Vector3(0.38, 0.62, 0.12), Vector3(35, 0, 0)))
+	if with_club:
+		root.add_child(part(cylinder(0.07, 0.11, 0.6, 6), mat(WOOD), Vector3(0.38, 0.62, 0.12), Vector3(35, 0, 0)))
+	return root
+
+
+## Octahedron-like gem used for glowing crystals.
+static func crystal_mesh() -> SphereMesh:
+	var key := "crystal"
+	if not _meshes.has(key):
+		var m := SphereMesh.new()
+		m.radius = 0.5
+		m.height = 1.0
+		m.radial_segments = 4
+		m.rings = 2
+		_meshes[key] = m
+	return _meshes[key]
+
+
+static func named(node: MeshInstance3D, node_name: String) -> MeshInstance3D:
+	node.name = node_name
+	return node
+
+
+static func make_wolf(fur: Color) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Model"
+	var fur_mat := mat(fur)
+	var dark := mat(fur.darkened(0.35))
+	root.add_child(part(capsule(0.27, 1.15), fur_mat, Vector3(0, 0.62, 0), Vector3(90, 0, 0)))
+	root.add_child(part(sphere(0.25), fur_mat, Vector3(0, 0.82, 0.55)))
+	root.add_child(part(box(Vector3(0.2, 0.16, 0.3)), dark, Vector3(0, 0.75, 0.82)))
+	root.add_child(part(cylinder(0.0, 0.08, 0.22, 5), dark, Vector3(-0.13, 1.08, 0.5)))
+	root.add_child(part(cylinder(0.0, 0.08, 0.22, 5), dark, Vector3(0.13, 1.08, 0.5)))
+	var eye := mat(Color("#FF3B3B"), 2.0)
+	root.add_child(part(sphere(0.05), eye, Vector3(-0.1, 0.88, 0.76)))
+	root.add_child(part(sphere(0.05), eye, Vector3(0.1, 0.88, 0.76)))
+	for leg: Vector3 in [Vector3(-0.17, 0.25, 0.35), Vector3(0.17, 0.25, 0.35), Vector3(-0.17, 0.25, -0.35), Vector3(0.17, 0.25, -0.35)]:
+		root.add_child(part(cylinder(0.06, 0.07, 0.5, 5), dark, leg))
+	root.add_child(part(cylinder(0.0, 0.1, 0.55, 5), fur_mat, Vector3(0, 0.75, -0.75), Vector3(-60, 0, 0)))
+	return root
+
+
+static func make_orc(skin: Color) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Model"
+	var skin_mat := mat(skin)
+	var leather := mat(Color("#5A3A24"))
+	var iron := mat(Color("#6E7177"))
+	root.add_child(part(capsule(0.38, 1.0), leather, Vector3(0, 0.55, 0)))
+	root.add_child(part(sphere(0.3), skin_mat, Vector3(0, 1.22, 0.02)))
+	root.add_child(part(box(Vector3(0.36, 0.2, 0.36)), iron, Vector3(-0.42, 0.98, 0)))
+	root.add_child(part(box(Vector3(0.36, 0.2, 0.36)), iron, Vector3(0.42, 0.98, 0)))
+	var tusk := mat(Color("#F4EBD0"))
+	root.add_child(part(cylinder(0.0, 0.05, 0.16, 5), tusk, Vector3(-0.1, 1.12, 0.27)))
+	root.add_child(part(cylinder(0.0, 0.05, 0.16, 5), tusk, Vector3(0.1, 1.12, 0.27)))
+	var eye := mat(Color("#FF4A3B"), 1.8)
+	root.add_child(part(sphere(0.05), eye, Vector3(-0.11, 1.28, 0.26)))
+	root.add_child(part(sphere(0.05), eye, Vector3(0.11, 1.28, 0.26)))
+	root.add_child(part(cylinder(0.05, 0.05, 1.1, 6), mat(WOOD), Vector3(0.55, 0.75, 0.15), Vector3(20, 0, 0)))
+	root.add_child(part(box(Vector3(0.08, 0.45, 0.4)), iron, Vector3(0.55, 1.22, 0.32), Vector3(20, 0, 0)))
+	return root
+
+
+static func make_goblin_archer(skin: Color) -> Node3D:
+	var root := make_goblin(skin, false)
+	root.add_child(part(cylinder(0.0, 0.34, 0.45, 8), mat(Color("#3D5A2E")), Vector3(0, 1.32, -0.02)))
+	root.add_child(part(cylinder(0.025, 0.025, 1.1, 5), mat(WOOD), Vector3(0.4, 0.75, 0.22), Vector3(0, 0, 8)))
+	root.add_child(part(cylinder(0.008, 0.008, 1.0, 3), mat(Color.WHITE), Vector3(0.33, 0.75, 0.22)))
+	return root
+
+
+static func make_imp(skin: Color) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Model"
+	var skin_mat := mat(skin)
+	var wing := mat(skin.darkened(0.45))
+	var horn := mat(Color("#B9B3A3"), 1.6)
+	root.add_child(part(sphere(0.28), skin_mat, Vector3(0, 0.5, 0)))
+	root.add_child(part(sphere(0.22), skin_mat, Vector3(0, 0.88, 0.05)))
+	root.add_child(named(part(cylinder(0.0, 0.06, 0.25, 5), horn, Vector3(-0.12, 1.12, 0.05), Vector3(0, 0, 20)), "CrystalHornL"))
+	root.add_child(named(part(cylinder(0.0, 0.06, 0.25, 5), horn, Vector3(0.12, 1.12, 0.05), Vector3(0, 0, -20)), "CrystalHornR"))
+	root.add_child(part(box(Vector3(0.6, 0.04, 0.35)), wing, Vector3(-0.45, 0.65, -0.05), Vector3(0, 0, 25)))
+	root.add_child(part(box(Vector3(0.6, 0.04, 0.35)), wing, Vector3(0.45, 0.65, -0.05), Vector3(0, 0, -25)))
+	var eye := mat(Color("#FFE14D"), 2.0)
+	root.add_child(part(sphere(0.05), eye, Vector3(-0.08, 0.92, 0.24)))
+	root.add_child(part(sphere(0.05), eye, Vector3(0.08, 0.92, 0.24)))
+	root.add_child(part(cylinder(0.0, 0.05, 0.5, 4), wing, Vector3(0, 0.35, -0.3), Vector3(-50, 0, 0)))
+	return root
+
+
+static func make_ward(stone: Color) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Model"
+	root.add_child(part(box(Vector3(1.25, 0.3, 0.7)), mat(stone.darkened(0.25)), Vector3(0, 0.15, 0)))
+	root.add_child(part(box(Vector3(1.05, 1.5, 0.5)), mat(stone), Vector3(0, 1.05, 0)))
+	root.add_child(part(box(Vector3(1.2, 0.2, 0.6)), mat(stone.darkened(0.15)), Vector3(0, 1.9, 0)))
+	var gem := named(part(crystal_mesh(), mat(Color("#B9B3A3"), 1.6), Vector3(0, 1.1, 0.27)), "Crystal")
+	gem.scale = Vector3(0.45, 0.75, 0.25)
+	root.add_child(gem)
 	return root
 
 
 static func make_enemy(def: Dictionary) -> Node3D:
 	var tint := Color(String(def.get("color", "#6BBF59")))
 	match String(def.get("model", "goblin")):
+		"wolf":
+			return make_wolf(tint)
+		"orc":
+			return make_orc(tint)
+		"goblin_archer":
+			return make_goblin_archer(tint)
+		"imp":
+			return make_imp(tint)
+		"ward":
+			return make_ward(tint)
 		_:
 			return make_goblin(tint)
+
+
+# --- Allies (face -Z like the hero; meshes named Crystal* glow in the hero's element) ----------
+
+static func make_skeleton(archer: bool) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Model"
+	var bone := mat(Color("#E8E2D0"))
+	var glow := mat(Color("#9FE8FF"), 2.0)
+	root.add_child(part(capsule(0.22, 0.75), bone, Vector3(0, 0.78, 0)))
+	root.add_child(part(sphere(0.22), bone, Vector3(0, 1.32, 0)))
+	root.add_child(named(part(sphere(0.055), glow, Vector3(-0.08, 1.33, -0.19)), "CrystalEyeL"))
+	root.add_child(named(part(sphere(0.055), glow, Vector3(0.08, 1.33, -0.19)), "CrystalEyeR"))
+	root.add_child(part(cylinder(0.05, 0.05, 0.5, 5), bone, Vector3(-0.1, 0.25, 0)))
+	root.add_child(part(cylinder(0.05, 0.05, 0.5, 5), bone, Vector3(0.1, 0.25, 0)))
+	if archer:
+		root.add_child(part(cylinder(0.0, 0.3, 0.4, 8), mat(Color("#3B4A6B")), Vector3(0, 1.5, 0.02)))
+		root.add_child(part(cylinder(0.025, 0.025, 1.0, 5), mat(WOOD), Vector3(-0.36, 0.85, -0.15), Vector3(0, 0, -8)))
+	else:
+		root.add_child(part(box(Vector3(0.07, 0.85, 0.14)), mat(Color("#B8BDC6")), Vector3(0.34, 0.95, -0.15), Vector3(-25, 0, 0)))
+		root.add_child(part(cylinder(0.26, 0.26, 0.06, 10), mat(Color("#5B3A2A")), Vector3(-0.32, 0.85, -0.05), Vector3(0, 0, 90)))
+	return root
+
+
+static func make_golem() -> Node3D:
+	var root := Node3D.new()
+	root.name = "Model"
+	var stone := mat(Color("#8A847A"))
+	var dark := mat(Color("#6B665D"))
+	var glow := mat(Color("#9FE8FF"), 2.0)
+	root.add_child(part(box(Vector3(0.85, 0.8, 0.6)), stone, Vector3(0, 1.0, 0)))
+	root.add_child(part(box(Vector3(0.42, 0.38, 0.4)), dark, Vector3(0, 1.6, -0.05)))
+	root.add_child(part(box(Vector3(0.3, 0.85, 0.32)), dark, Vector3(-0.6, 0.85, 0)))
+	root.add_child(part(box(Vector3(0.3, 0.85, 0.32)), dark, Vector3(0.6, 0.85, 0)))
+	root.add_child(part(box(Vector3(0.28, 0.6, 0.3)), stone, Vector3(-0.22, 0.3, 0)))
+	root.add_child(part(box(Vector3(0.28, 0.6, 0.3)), stone, Vector3(0.22, 0.3, 0)))
+	var core := named(part(crystal_mesh(), glow, Vector3(0, 1.05, -0.3)), "CrystalCore")
+	core.scale = Vector3(0.25, 0.3, 0.12)
+	root.add_child(core)
+	root.add_child(named(part(box(Vector3(0.28, 0.06, 0.04)), glow, Vector3(0, 1.62, -0.26)), "CrystalEyes"))
+	return root
+
+
+static func make_ally(def: Dictionary) -> Node3D:
+	match String(def.get("model", "skeleton")):
+		"skeleton_archer":
+			return make_skeleton(true)
+		"golem":
+			return make_golem()
+		_:
+			return make_skeleton(false)
 
 
 static func make_hero(def: Dictionary) -> Node3D:

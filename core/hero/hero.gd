@@ -21,9 +21,10 @@ var _flash_on := false
 var _anim_time := 0.0
 var _orb_pop := 0.0
 var _model: Node3D
-var _orb: Node3D
+var _orb: MeshInstance3D
 var _meshes: Array[MeshInstance3D] = []
 var _hp_label: Label3D
+var _ring: MeshInstance3D
 
 
 func setup(class_def: Dictionary) -> void:
@@ -40,12 +41,30 @@ func setup(class_def: Dictionary) -> void:
 	_orb = _model.get_node("Orb")
 	Placeholders.collect_meshes(_model, _meshes)
 	add_child(Placeholders.blob_shadow(0.55))
+	_ring = Placeholders.part(Placeholders.cylinder(0.8, 0.8, 0.03, 24), null, Vector3(0, 0.05, 0))
+	add_child(_ring)
 
 	_hp_label = Placeholders.label(64, 0.0065)
 	_hp_label.position = Vector3(0, 2.45, 0)
 	_hp_label.modulate = Color("#FFE9A8")
 	add_child(_hp_label)
 	_refresh_label()
+	set_element(stats.element)
+
+
+## Retints the staff orb and aura ring to the current element.
+func set_element(element: String) -> void:
+	var color := Content.element_color(element)
+	_orb.material_override = Placeholders.mat(color, 2.5)
+	_ring.visible = element != "none"
+	if _ring.visible:
+		_ring.material_override = Placeholders.overlay(Color(color, 0.55))
+	_orb_pop = 1.5
+
+
+func refresh_hp() -> void:
+	_refresh_label()
+	hp_changed.emit(stats.hp, stats.max_hp)
 
 
 func steer_by(dx_world: float) -> void:

@@ -74,6 +74,22 @@ func _build_placeholder_sfx() -> void:
 		_tone(0.18, 1046.0, 1046.0, "square", 0.22),
 	]))
 	_streams["gate_bad"] = _wav(_tone(0.32, 320.0, 105.0, "saw", 0.3))
+	_streams["element"] = _wav(_join([
+		_tone(0.12, 300.0, 1400.0, "tri", 0.35, 0.35),
+		_tone(0.2, 1400.0, 1300.0, "sine", 0.3),
+	]))
+	_streams["summon"] = _wav(_join([
+		_tone(0.09, 392.0, 392.0, "tri", 0.4),
+		_tone(0.09, 523.0, 523.0, "tri", 0.4),
+		_tone(0.22, 784.0, 760.0, "tri", 0.4),
+	]))
+	_streams["curse"] = _wav(_join([
+		_tone(0.18, 220.0, 207.0, "saw", 0.3),
+		_tone(0.4, 155.0, 110.0, "saw", 0.32, 0.15),
+	]))
+	_streams["immune"] = _wav(_tone(0.06, 2200.0, 1900.0, "square", 0.12))
+	_streams["enemy_shot"] = _wav(_tone(0.12, 900.0, 300.0, "saw", 0.2, 0.3))
+	_streams["ally_die"] = _wav(_tone(0.18, 700.0, 200.0, "square", 0.25, 0.5))
 	_streams["coin"] = _wav(_join([
 		_tone(0.05, 1318.0, 1318.0, "square", 0.16),
 		_tone(0.12, 1760.0, 1760.0, "square", 0.16),
