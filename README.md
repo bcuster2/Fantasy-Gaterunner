@@ -144,21 +144,25 @@ element-locked walls. Each element also adds an on-hit effect: fire burns, ice s
    level N's difficulty.
 2. **Rhythm.** `Curves.level_kind`: every 10th level is a **boss** level, every 5th a **spike** (harder,
    breather becomes pressure), and levels where `N % 7 == 3` are **reward** levels (easier, extra coins).
-3. **Pacing template.** Weighted pick from `pacing.json` (unlocked by level), e.g.
-   `intro, gate, buildup, buildup, gate, pressure, breather, gate, pressure, climax, preboss`.
-4. **Segments.** Each slot draws a weighted segment whose `roles` include it (with fallbacks, no
-   back-to-back repeats). Segments may be mirrored. Count fields given as `[min,max]` grow with the
-   density curve. Element tokens resolve from the level's 2-element palette: `$A`, `$B`, `$mix`, `$wall`.
-5. **Scaling.** Enemy `hp_mult`/`dmg_mult` come from the `enemy_hp`/`enemy_damage` curves × rhythm. Gate
+3. **Fixed gate cadence.** Every level: a 40 m intro, 6 gates exactly 58 m apart, a pre-boss gate,
+   and the finish (`generator.cadence`). Each gate rolls random contents (pattern `any`), so builds
+   can't be planned; players adapt to what turns up.
+4. **Pacing template.** A weighted pick from `pacing.json` (unlocked by level) decides only what you
+   fight between gates: one role per stretch, e.g. `buildup, pressure, breather, pressure, pressure, climax`.
+5. **Segments.** Each stretch draws a weighted segment whose `roles` include it and that fits the
+   stretch (with fallbacks, no back-to-back repeats). Segments may be mirrored. Count fields given as
+   `[min,max]` grow with the density curve. Element tokens resolve from the level's 2-element palette:
+   `$A`, `$B`, `$mix`, `$wall`.
+6. **Scaling.** Enemy `hp_mult`/`dmg_mult` come from the `enemy_hp`/`enemy_damage` curves × rhythm. Gate
    values come from templates, with additive values scaled by `player_power`/`player_hp`.
-6. **Fairness** (`gen/fairness.gd`):
+7. **Fairness** (`gen/fairness.gd`):
    - every gate set has a safe option (never two harmful gates as the only choice);
    - every element-locked wall's preceding gate set offers its weakness (or one is inserted);
    - enemy density per 25 m window stays under the `max_density` curve.
-7. **In-level ramp.** Early segments use part of the level's density and HP (every run starts weak).
-8. **Difficulty targeting.** The estimator's median-gate-path score is steered into a band per level kind
+8. **In-level ramp.** Early segments use part of the level's density and HP (every run starts weak).
+9. **Difficulty targeting.** The estimator's median-gate-path score is steered into a band per level kind
    (`generator.target_median_score`, raised for the first 15 levels) by nudging enemy HP/damage.
-9. **Winnability.** An expected-upgrade hero (`player_power`/`player_hp` curves) on the best gate path
+10. **Winnability.** An expected-upgrade hero (`player_power`/`player_hp` curves) on the best gate path
    must survive with an HP margin. Otherwise enemies are scaled down, and crowds are thinned too from
    the third repair on. The plan records `debug.difficulty_scale`.
 
@@ -175,15 +179,17 @@ Drop it into any file in `data/segments/` (or a new file there):
                 "rows": [2, 3], "cols": [3, 4], "element": "$A", "hp": 1.0 } ] }
 ```
 
-Gate segments use `{ "d": 12, "type": "gates", "pattern": "any" }`, where pattern is one of
-`any | stat | element | summon | curse | breather | preboss`. Set `"mirror": false` for asymmetric
-segments that must not flip. Run `tools/gen_check.tscn` afterwards to confirm fairness and determinism.
+Segments hold enemies only; gates come from the cadence. A segment's `length` must fit a stretch
+(intro: 34 m, between gates: 40 m, +4 m tolerance); events past the stretch are dropped. Set
+`"mirror": false` for asymmetric segments that must not flip. Run `tools/gen_check.tscn` afterwards
+to confirm fairness and determinism.
 
 ### Adding a gate or pacing template
 
 - **Gate:** add a template to the right pool in `data/gates.json` (`value` is a number or `[min,max]`;
   `scale: "power"` makes it grow with level; `min_level` controls when it unlocks).
-- **Pacing:** add an entry to `data/pacing.json` with `slots`, `weight`, `min_level`.
+- **Pacing:** add an entry to `data/pacing.json` with `intro`, `intervals` (one role per gate), `weight`, `min_level`.
+- **Gate rhythm:** `balance.json -> generator.cadence` (intro length, interval, gate count).
 - **Modifiers:** arrive in Milestone 5 (`plan.modifiers`).
 
 ### Tuning curves

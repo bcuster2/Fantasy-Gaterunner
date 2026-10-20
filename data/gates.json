@@ -255,7 +255,7 @@
 		}
 	],
 	"patterns": {
-		"_doc": "Gate kinds picked when a segment asks for pattern 'any': weight and unlock level.",
+		"_doc": "Gate kinds rolled for every regular gate (contents are never planned): weight and unlock level. 'breather' = a heal option.",
 		"stat": {
 			"weight": 4,
 			"min_level": 1
@@ -271,6 +271,10 @@
 		"curse": {
 			"weight": 1,
 			"min_level": 5
+		},
+		"breather": {
+			"weight": 0.5,
+			"min_level": 3
 		}
 	}
 }

@@ -29,6 +29,15 @@ godot --headless --path . --fixed-fps 60 res://tools/calibrate.tscn -- --levels=
 - **Casual player.** Takes the best gate 65% of the time (`combat.casual_best_chance`), otherwise a
   random other one. Sampled 25 times per level to get a win rate. This is the headline metric.
 
+## Design rule: fixed gate cadence, unplannable builds
+
+Every level has the same build rhythm: a 40 m intro, then **6 gates exactly 58 m apart**, then a
+pre-boss gate and the finish (442 m, ~55 s). Players always know when the next choice is coming.
+What is offered is never planned: every gate rolls its contents (stat, element, summon, curse, heal,
+or harmful) from `gates.json`, so builds come from adapting to the choices that turn up and each
+level plays differently. Pacing templates only decide what you fight between gates.
+(`balance.json -> generator.cadence`)
+
 ## How difficulty is set
 
 1. **Curves** set the baseline per level: `enemy_hp`, `enemy_damage`, `density`, `bad_gate_chance`,
@@ -36,14 +45,55 @@ godot --headless --path . --fixed-fps 60 res://tools/calibrate.tscn -- --levels=
 2. **In-level ramp.** Every run starts with a fresh hero, so early segments use 20% of the level's
    extra density and 75% of its HP, reaching 100% by 60% of the level
    (`generator.density_ramp_start / hp_ramp_start / ramp_full_at`).
-3. **Targeting.** The generator nudges each level's enemy HP/damage (×0.9 down, ×1.1 up, max ×1.4) until
+3. **Targeting.** The generator nudges each level's enemy HP/damage (×0.9 down, ×1.1 up, max ×1.6) until
    the median-path score lands in `generator.target_median_score[kind]`. Score = distance fraction
    reached if the median path dies, or 1 + remaining HP fraction if it survives. This evens out
-   segment and gate luck and keeps the rhythm readable. The first 15 levels aim higher (onboarding).
+   segment and gate luck and keeps the rhythm readable. Making a level harder (targeting up, or the
+   spike multiplier) mostly toughens the back half, where gate-built power lives. The opening gets
+   only `factor^0.25` (`upscale_opening_weight`). Onboarding aims higher for the first 20 levels, and
+   through level 15 the median path must finish.
 4. **Guarantee.** The best path must survive with HP to spare (15%, or 5% on spike/boss levels).
    Otherwise enemies are scaled down, and crowds are thinned after the second round.
 
-## Pass 1 (Milestone 4) results
+## Pass 2: fixed gate cadence (current)
+
+Every level now has 7 gates (6 + pre-boss) instead of 3-6, so players end runs much stronger. Changes:
+
+- `enemy_hp`: base 1.0 → 1.2, linear 0.03 → 0.035. `enemy_damage`: base 1.0 → 1.15.
+  `generator.max_upscale` 1.4 → 1.6.
+- Spike levels start at level 10 (`rhythm.spike_min_level`); onboarding fades over 20 levels.
+- Estimator back to conservative (`hero_aim` 0.75, `leak_hit_rate` 1.0). The near-unbiased setting
+  let 3/51 live runs die in the opening.
+- Rhythm and up-scaling weighted toward the back half of each level (see above).
+
+| Kind | Levels | Mean casual win | Std dev |
+|---|---|---|---|
+| normal | 344 | 83% | 0.18 |
+| spike | 49 | 64% | 0.24 |
+| boss (run part) | 50 | 79% | 0.19 |
+| reward | 57 | 97% | 0.06 |
+
+| levels | casual win | best hp | median win | spike win | reward win | repair scale | run s | coins/level (casual) | cumulative coins |
+|---|---|---|---|---|---|---|---|---|---|
+| 1-50 | 88% | 72% | 56% | 85% | 94% | 1.05 | 55 | 82 | 5,077 |
+| 51-100 | 82% | 64% | 32% | 76% | 95% | 0.95 | 55 | 164 | 15,441 |
+| 101-150 | 80% | 61% | 44% | 67% | 97% | 0.95 | 55 | 231 | 30,936 |
+| 151-200 | 85% | 65% | 38% | 62% | 99% | 0.93 | 55 | 318 | 50,247 |
+| 201-250 | 84% | 67% | 30% | 57% | 99% | 0.97 | 55 | 369 | 73,163 |
+| 251-300 | 81% | 71% | 24% | 66% | 100% | 0.88 | 55 | 440 | 102,080 |
+| 301-350 | 82% | 66% | 36% | 49% | 96% | 0.93 | 55 | 531 | 135,976 |
+| 351-400 | 82% | 62% | 42% | 75% | 96% | 0.86 | 55 | 614 | 174,214 |
+| 401-450 | 81% | 65% | 36% | 64% | 97% | 0.95 | 55 | 648 | 216,026 |
+| 451-500 | 77% | 60% | 36% | 44% | 95% | 0.84 | 55 | 720 | 266,319 |
+
+Levels 1-25 all have a casual win rate of 72% or higher. **Calibration:** 51/51 sampled levels (1-500)
+won live with the autopilot; the estimator agreed on every outcome and stays conservative (live runs
+end with ~8.5% more HP than predicted).
+
+**Watch list:** late spike levels (300-500) dip to 44-49% casual wins; revisit after bosses and
+modifiers land. A ~0.9 repair scale late means the curves slightly outpace the expected player there.
+
+## Pass 1 (Milestone 4) results (superseded)
 
 Targets (casual win rate): normal ~80%, spike ~65%, boss run ~75% (the boss fight adds its own
 challenge in Milestone 5), reward ~90%+, early levels ~90%+.

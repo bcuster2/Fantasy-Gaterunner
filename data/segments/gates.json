@@ -1,86 +1,6 @@
 {
-	"_doc": "Gate and rest segments. Gate events use pattern: any | stat | element | summon | curse | breather | preboss. The gate factory turns the pattern into concrete gates scaled to the level.",
+	"_doc": "Rest segments. Gates are not segments any more: the generator places them on a fixed cadence (balance.json -> generator.cadence) and rolls their contents.",
 	"segments": [
-		{
-			"id": "gate_any",
-			"roles": [
-				"gate"
-			],
-			"min_level": 1,
-			"weight": 4,
-			"length": 28,
-			"events": [
-				{
-					"d": 12,
-					"type": "gates",
-					"pattern": "any"
-				}
-			]
-		},
-		{
-			"id": "gate_stat",
-			"roles": [
-				"gate"
-			],
-			"min_level": 1,
-			"weight": 2,
-			"length": 28,
-			"events": [
-				{
-					"d": 12,
-					"type": "gates",
-					"pattern": "stat"
-				}
-			]
-		},
-		{
-			"id": "gate_element",
-			"roles": [
-				"gate"
-			],
-			"min_level": 3,
-			"weight": 1.5,
-			"length": 28,
-			"events": [
-				{
-					"d": 12,
-					"type": "gates",
-					"pattern": "element"
-				}
-			]
-		},
-		{
-			"id": "gate_summon",
-			"roles": [
-				"gate"
-			],
-			"min_level": 2,
-			"weight": 1,
-			"length": 28,
-			"events": [
-				{
-					"d": 12,
-					"type": "gates",
-					"pattern": "summon"
-				}
-			]
-		},
-		{
-			"id": "gate_curse",
-			"roles": [
-				"gate"
-			],
-			"min_level": 5,
-			"weight": 0.8,
-			"length": 28,
-			"events": [
-				{
-					"d": 12,
-					"type": "gates",
-					"pattern": "curse"
-				}
-			]
-		},
 		{
 			"id": "rest_open",
 			"roles": [
@@ -88,40 +8,8 @@
 			],
 			"min_level": 1,
 			"weight": 2,
-			"length": 24,
-			"events": []
-		},
-		{
-			"id": "rest_heal",
-			"roles": [
-				"breather"
-			],
-			"min_level": 3,
-			"weight": 1.5,
 			"length": 30,
-			"events": [
-				{
-					"d": 14,
-					"type": "gates",
-					"pattern": "breather"
-				}
-			]
-		},
-		{
-			"id": "preboss_choice",
-			"roles": [
-				"preboss"
-			],
-			"min_level": 1,
-			"weight": 1,
-			"length": 34,
-			"events": [
-				{
-					"d": 14,
-					"type": "gates",
-					"pattern": "preboss"
-				}
-			]
+			"events": []
 		}
 	]
 }

@@ -4,7 +4,8 @@
 		{
 			"id": "goblin_trickle",
 			"roles": [
-				"intro"
+				"intro",
+				"breather"
 			],
 			"min_level": 1,
 			"weight": 3,
@@ -27,7 +28,8 @@
 			"id": "goblin_pairs",
 			"roles": [
 				"intro",
-				"buildup"
+				"buildup",
+				"breather"
 			],
 			"min_level": 1,
 			"weight": 2,
@@ -192,7 +194,8 @@
 			"id": "imp_drift",
 			"roles": [
 				"buildup",
-				"pressure"
+				"pressure",
+				"breather"
 			],
 			"min_level": 3,
 			"weight": 1.5,

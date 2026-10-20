@@ -2,10 +2,10 @@ class_name LevelBuilder
 extends RefCounted
 ## Seeded level assembly. Pure: build(level, seed, db, balance) always returns the same plan.
 ##
-## Steps: pick a pacing template -> adjust for the level's rhythm (spike/reward) -> fill each slot
-## with a weighted segment for that role -> instantiate events (density-scaled counts, element
-## palette, difficulty curves, generated gates) -> fairness repairs -> winnability check with an
-## expected-upgrade hero (enemies are scaled down until the best gate path survives with margin).
+## Steps: place gates on the fixed cadence (random contents) -> pick a pacing template for what to
+## fight between them -> adjust for the level's rhythm (spike/reward) -> fill each stretch with a
+## weighted segment for its role -> instantiate events (density-scaled counts, element palette,
+## difficulty curves) -> fairness repairs -> difficulty targeting and a winnability guarantee.
 
 const COUNT_KEYS := ["count", "rows", "cols"]
 const START_OFFSET := 14.0
@@ -13,7 +13,7 @@ const ROLE_FALLBACKS := {
 	"element_wall": ["pressure"],
 	"climax": ["pressure"],
 	"intro": ["buildup"],
-	"preboss": ["gate"],
+	"breather": ["intro"],
 }
 const ZONES := ["forest", "crypt", "volcano"]
 
@@ -28,36 +28,60 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 	var kind := Curves.level_kind(level, rhythm)
 	var rhythm_mult := Curves.rhythm_mult(kind, rhythm)
 	var ctx := make_context(level, db, balance, rng)
-	ctx["hp_mult"] = Curves.named(balance, "enemy_hp", level) * rhythm_mult
-	ctx["dmg_mult"] = Curves.named(balance, "enemy_damage", level) * rhythm_mult
+	ctx["hp_mult"] = Curves.named(balance, "enemy_hp", level)
+	ctx["dmg_mult"] = Curves.named(balance, "enemy_damage", level)
+	# Spike/reward multipliers lean on the back half (see _opening_weighted): a spike level is a
+	# harder climax, never an unwinnable opening for a base-stat hero.
+	ctx["rhythm_mult"] = rhythm_mult
+	ctx["opening_weight"] = float(gen.get("upscale_opening_weight", 0.25))
 
 	var template := GenUtil.pick_weighted(rng, _templates(db), level)
-	var slots: Array = (template.get("slots", ["intro", "gate", "buildup", "preboss"]) as Array).duplicate()
-	_apply_rhythm(slots, kind)
+	var cadence: Dictionary = gen.get("cadence", {})
+	var gate_count := int(cadence.get("gate_count", 6))
+	var interval := float(cadence.get("interval", 58.0))
+	var clear_after := float(cadence.get("clear_after_gate", 12.0))
+	var clear_before := float(cadence.get("clear_before_gate", 6.0))
+	var first_gate := START_OFFSET + float(cadence.get("intro_length", 40.0))
+	var roles: Array = (template.get("intervals", []) as Array).duplicate()
+	while roles.size() < gate_count:
+		roles.append("pressure")
+	roles.resize(gate_count)
+	_apply_rhythm(roles, kind)
 
+	# Fixed cadence: gate k always sits at first_gate + k * interval, with random contents. Enemy
+	# segments fill the stretch after each gate. The hero starts every run weak, so crowds and
+	# toughness ramp up across the level (early stretches use part of the density and HP).
 	var events: Array = []
 	var segments_debug: Array = []
-	var cursor := START_OFFSET
 	var previous_id := ""
-	# The hero starts every run weak, so crowds and toughness ramp up across the level: early
-	# segments use a fraction of the level's density and HP, the back half uses all of it.
 	var ramp_full := float(gen.get("ramp_full_at", 0.6))
-	for slot_index in slots.size():
-		var role: String = slots[slot_index]
-		var progress := float(slot_index) / maxf(1.0, slots.size() - 1.0)
+	for stretch in gate_count + 1:
+		var role := String(template.get("intro", "intro")) if stretch == 0 else String(roles[stretch - 1])
+		var start := START_OFFSET if stretch == 0 else first_gate + (stretch - 1) * interval + clear_after
+		var room := (first_gate - clear_before - START_OFFSET) if stretch == 0 else (interval - clear_after - clear_before)
+		if stretch > 0:
+			var gate_d := first_gate + (stretch - 1) * interval
+			events.append({"d": gate_d, "type": "gates", "gates": GateFactory.make("any", ctx, rng), "cadence": stretch})
+			segments_debug.append({"id": "gate %d" % stretch, "role": "gate", "start": gate_d, "end": gate_d})
+		var progress := float(stretch) / float(gate_count)
 		var ramp := smoothstep(0.0, ramp_full, progress)
 		ctx["slot_density_t"] = float(ctx["density_t"]) * lerpf(float(gen.get("density_ramp_start", 0.2)), 1.0, ramp)
 		ctx["slot_hp_mult"] = float(ctx["hp_mult"]) * lerpf(float(gen.get("hp_ramp_start", 0.75)), 1.0, ramp)
-		var seg := _pick_segment(role, level, db, rng, previous_id)
+		ctx["progress"] = progress
+		var seg := _pick_segment(role, level, db, rng, previous_id, room + 4.0)
 		if seg.is_empty():
 			continue
 		previous_id = String(seg.get("id", ""))
 		var mirror := bool(seg.get("mirror", true)) and rng.randf() < 0.5
 		var swap := rng.randf() < 0.5
 		for src: Dictionary in seg.get("events", []):
-			events.append(_instantiate(src, cursor, mirror, swap, ctx, rng))
-		segments_debug.append({"id": previous_id, "role": role, "start": cursor, "end": cursor + float(seg.get("length", 20))})
-		cursor += float(seg.get("length", 20))
+			if float(src.get("d", 0.0)) <= room:
+				events.append(_instantiate(src, start, mirror, swap, ctx, rng))
+		segments_debug.append({"id": previous_id, "role": role, "start": start, "end": start + minf(room, float(seg.get("length", room)))})
+
+	var preboss_d := first_gate + gate_count * interval
+	events.append({"d": preboss_d, "type": "gates", "gates": GateFactory.make("preboss", ctx, rng), "cadence": gate_count + 1})
+	segments_debug.append({"id": "pre-boss gate", "role": "preboss", "start": preboss_d, "end": preboss_d})
 
 	var plan := {
 		"id": "level_%d" % level,
@@ -65,7 +89,7 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 		"seed": seed_value,
 		"kind": kind,
 		"template": String(template.get("id", "")),
-		"length": cursor + float(gen.get("end_padding", 30.0)),
+		"length": preboss_d + float(cadence.get("finish_after_preboss", 40.0)),
 		"events": events,
 		"palette": ctx["palette"],
 		"zone": ZONES[((level - 1) / 10) % ZONES.size()],
@@ -99,6 +123,10 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 	var onboarding := clampf(1.0 - float(level - 1) / maxf(1.0, float(gen.get("onboarding_levels", 15))), 0.0, 1.0)
 	band[0] = float(band[0]) + float(gen.get("onboarding_shift", 0.35)) * onboarding
 	band[1] = float(band[1]) + float(gen.get("onboarding_shift", 0.35)) * onboarding
+	# New players: through the first levels the median gate path must actually finish.
+	if level <= int(gen.get("onboarding_survive_levels", 15)):
+		band[0] = maxf(float(band[0]), 1.05)
+		band[1] = maxf(float(band[1]), float(band[0]) + 0.3)
 	var margin := float(gen.get("min_hp_margin_spike" if kind in ["spike", "boss"] else "min_hp_margin", 0.15))
 	var max_up := float(gen.get("max_upscale", 1.4))
 	var difficulty := 1.0
@@ -113,7 +141,9 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 		if is_equal_approx(step, 1.0):
 			break
 		difficulty *= step
-		_scale_enemies(plan, step)
+		# Making a level harder mostly toughens the later stretches, where gate-built power lives;
+		# the opening (base stats) barely changes. Easing applies everywhere.
+		_scale_enemies(plan, step, float(gen.get("upscale_opening_weight", 0.25)) if step > 1.0 else 1.0)
 		median_score = median_score_of(plan, hero, db, balance)
 	var estimate := Estimator.run(plan, hero, "best", db, balance)
 	var repairs := 0
@@ -207,9 +237,10 @@ static func _apply_rhythm(slots: Array, kind: String) -> void:
 				slots[b] = "pressure"
 
 
-static func _pick_segment(role: String, level: int, db: Dictionary, rng: RandomNumberGenerator, previous_id: String) -> Dictionary:
+static func _pick_segment(role: String, level: int, db: Dictionary, rng: RandomNumberGenerator, previous_id: String, max_length := INF) -> Dictionary:
 	for candidate_role: String in [role] + Array(ROLE_FALLBACKS.get(role, [])):
-		var pool: Array = db["segments"].filter(func(s: Dictionary) -> bool: return (s.get("roles", []) as Array).has(candidate_role))
+		var pool: Array = db["segments"].filter(func(s: Dictionary) -> bool:
+			return (s.get("roles", []) as Array).has(candidate_role) and float(s.get("length", 0.0)) <= max_length)
 		var seg := GenUtil.pick_weighted(rng, pool, level)
 		if not seg.is_empty() and String(seg.get("id", "")) == previous_id:
 			seg = GenUtil.pick_weighted(rng, pool, level) # one re-roll to avoid back-to-back repeats
@@ -243,8 +274,10 @@ static func _instantiate(src: Dictionary, cursor: float, mirror: bool, swap: boo
 			e["element"] = _resolve_element(String(src.get("element", "none")), swap, ctx, rng)
 			if String(src.get("element", "")) == "$wall":
 				e["wall"] = true
-			e["hp_mult"] = float(e.get("hp", 1.0)) * float(ctx.get("slot_hp_mult", ctx["hp_mult"]))
-			e["dmg_mult"] = float(ctx["dmg_mult"])
+			var rhythm := _opening_weighted(float(ctx.get("rhythm_mult", 1.0)), float(ctx.get("progress", 1.0)), float(ctx.get("opening_weight", 1.0)))
+			e["hp_mult"] = float(e.get("hp", 1.0)) * float(ctx.get("slot_hp_mult", ctx["hp_mult"])) * rhythm
+			e["progress"] = snappedf(float(ctx.get("progress", 1.0)), 0.001)
+			e["dmg_mult"] = float(ctx["dmg_mult"]) * rhythm
 			e.erase("hp")
 		"gates":
 			e["gates"] = GateFactory.make(String(src.get("pattern", "any")), ctx, rng)
@@ -272,11 +305,21 @@ static func _resolve_element(token: String, swap: bool, ctx: Dictionary, rng: Ra
 			return a if rng.randf() < float(ctx["element_chance"]) else "none"
 
 
-static func _scale_enemies(plan: Dictionary, step: float) -> void:
+## factor^weight, where weight rises from opening_weight at the start of the level to 1.0 by the
+## halfway point: harder-than-baseline multipliers mostly land where the build has grown.
+static func _opening_weighted(factor: float, progress: float, opening_weight: float) -> float:
+	if factor <= 1.0:
+		return factor
+	return pow(factor, lerpf(opening_weight, 1.0, clampf(progress * 2.0, 0.0, 1.0)))
+
+
+## Scales enemy HP/damage; with opening_weight < 1 increases mostly hit the back half.
+static func _scale_enemies(plan: Dictionary, step: float, opening_weight := 1.0) -> void:
 	for event: Dictionary in plan["events"]:
 		if String(event.get("type", "")) == "enemies":
-			event["hp_mult"] = float(event["hp_mult"]) * step
-			event["dmg_mult"] = float(event["dmg_mult"]) * step
+			var factor := _opening_weighted(step, float(event.get("progress", 1.0)), opening_weight)
+			event["hp_mult"] = float(event["hp_mult"]) * factor
+			event["dmg_mult"] = float(event["dmg_mult"]) * factor
 
 
 static func _sort_events(plan: Dictionary) -> void:

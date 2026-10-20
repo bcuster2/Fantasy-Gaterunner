@@ -21,7 +21,7 @@ static func level_kind(level: int, rhythm: Dictionary) -> String:
 	if boss_every > 0 and level % boss_every == 0:
 		return "boss"
 	var spike_every := int(rhythm.get("spike_every", 5))
-	if level > 1 and spike_every > 0 and (level - int(rhythm.get("spike_offset", 0))) % spike_every == 0:
+	if level >= int(rhythm.get("spike_min_level", 10)) and spike_every > 0 and (level - int(rhythm.get("spike_offset", 0))) % spike_every == 0:
 		return "spike"
 	var reward_every := int(rhythm.get("reward_every", 7))
 	if level > 2 and reward_every > 0 and level % reward_every == int(rhythm.get("reward_offset", 3)):

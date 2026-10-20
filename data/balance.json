@@ -82,13 +82,13 @@
 	"curves": {
 		"_doc": "Difficulty as functions of level N: value = base * (1 + linear * (N-1)^exponent), clamped to cap (0 = no cap). Tune here, then run the simulator to see the effect across levels 1-500.",
 		"enemy_hp": {
-			"base": 1.0,
-			"linear": 0.03,
+			"base": 1.2,
+			"linear": 0.035,
 			"exponent": 1.12,
 			"cap": 0
 		},
 		"enemy_damage": {
-			"base": 1.0,
+			"base": 1.15,
 			"linear": 0.02,
 			"exponent": 1.0,
 			"cap": 0
@@ -141,7 +141,8 @@
 		"reward_every": 7,
 		"reward_offset": 3,
 		"reward_mult": 0.8,
-		"boss_every": 10
+		"boss_every": 10,
+		"spike_min_level": 10
 	},
 	"generator": {
 		"_doc": "Generator, fairness and difficulty targeting. target_median_score: band for the median-path score (distance fraction if it dies, else 1 + HP left) per level kind; onboarding raises it for the first levels.",
@@ -153,20 +154,19 @@
 		"min_hp_margin_spike": 0.05,
 		"repair_scale": 0.88,
 		"max_repairs": 8,
-		"end_padding": 30.0,
 		"wall_lookback": 140.0,
 		"debug_assume_upgrades": true,
 		"density_ramp_start": 0.2,
 		"hp_ramp_start": 0.75,
 		"ramp_full_at": 0.6,
-		"max_upscale": 1.4,
+		"max_upscale": 1.6,
 		"max_tune_steps": 6,
 		"tune_down": 0.9,
 		"tune_up": 1.1,
 		"target_median_score": {
 			"normal": [
-				0.62,
-				0.95
+				0.6,
+				0.92
 			],
 			"spike": [
 				0.42,
@@ -181,13 +181,24 @@
 				1.4
 			]
 		},
-		"onboarding_levels": 15,
-		"onboarding_shift": 0.35
+		"onboarding_levels": 20,
+		"onboarding_shift": 0.35,
+		"cadence": {
+			"_doc": "Every level has the same build rhythm: an intro stretch, gate_count gates exactly interval meters apart (enemy segments fill the space between them), then a pre-boss gate and the finish. Gate contents are always random.",
+			"intro_length": 40.0,
+			"interval": 58.0,
+			"gate_count": 6,
+			"clear_after_gate": 12.0,
+			"clear_before_gate": 6.0,
+			"finish_after_preboss": 40.0
+		},
+		"upscale_opening_weight": 0.25,
+		"onboarding_survive_levels": 15
 	},
 	"estimator": {
 		"_doc": "Analytic run model used for fairness checks and the simulator. Calibrate against live autopilot runs.",
-		"hero_aim": 0.8,
-		"leak_hit_rate": 0.85
+		"hero_aim": 0.75,
+		"leak_hit_rate": 1.0
 	},
 	"simulator": {
 		"_doc": "Targets for tools/simulate.gd. casual = a player who takes the best gate ~65% of the time.",
