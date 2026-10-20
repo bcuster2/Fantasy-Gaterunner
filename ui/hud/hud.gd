@@ -3,6 +3,7 @@ extends CanvasLayer
 ## In-run HUD built in code: HP, coins, progress, stat chips, steering hint, pause and result overlays.
 
 signal restart_requested
+signal next_requested
 
 const STAT_ORDER := ["damage", "fire_rate", "projectiles"]
 const STAT_CAPTIONS := {"damage": "DAMAGE", "fire_rate": "FIRE RATE", "projectiles": "SHOTS"}
@@ -21,6 +22,7 @@ var _chips: Dictionary = {}
 var _chip_values: Dictionary = {}
 var _flash: ColorRect
 var _hint: Label
+var _level_title: Label
 var _hint_time := 0.0
 var _hint_fading := false
 var _overlay: Control
@@ -90,6 +92,10 @@ func set_stats(stats: HeroStats, changed_stat := "", good := true) -> void:
 		create_tween().tween_property(chip, "modulate", Color.WHITE, 0.5)
 
 
+func set_level_title(text: String) -> void:
+	_level_title.text = text
+
+
 func set_element(element: String) -> void:
 	_element_icon.texture = Content.element_icon(element)
 	_element_icon.visible = _element_icon.texture != null
@@ -118,8 +124,10 @@ func hide_hint() -> void:
 	tween.tween_callback(_hint.hide)
 
 
-func show_result(won: bool, body: String) -> void:
-	_show_overlay("VICTORY!" if won else "DEFEATED", body, [["PLAY AGAIN", _on_restart]])
+func show_result(won: bool, body: String, can_advance := false) -> void:
+	var buttons: Array = [["NEXT LEVEL", func() -> void: next_requested.emit()]] if won and can_advance else []
+	buttons.append(["REPLAY" if won else "TRY AGAIN", _on_restart])
+	_show_overlay("VICTORY!" if won else "DEFEATED", body, buttons)
 	_overlay_title.modulate = Color("#FFD166") if won else Color("#FF6B6B")
 
 
@@ -213,10 +221,12 @@ func _build_top_bar(root: Control) -> void:
 	_element_label = Label.new()
 	_element_label.add_theme_font_size_override("font_size", 36)
 	element_row.add_child(_element_label)
-	var spacer := Control.new()
-	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	badges.add_child(spacer)
+	_level_title = Label.new()
+	_level_title.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_level_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_level_title.add_theme_font_size_override("font_size", 34)
+	_level_title.modulate = Color(1, 1, 1, 0.85)
+	badges.add_child(_level_title)
 	_ally_chip = _small_chip()
 	badges.add_child(_ally_chip)
 	_ally_label = Label.new()

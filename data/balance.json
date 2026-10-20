@@ -77,5 +77,88 @@
 		"pushback": 1.6,
 		"summon_pop_time": 0.35,
 		"back_spread": 1.6
+	},
+	"curves": {
+		"_doc": "Difficulty as functions of level N: value = base * (1 + linear * (N-1)^exponent), clamped to cap (0 = no cap). Tune here, then run the simulator to see the effect across levels 1-500.",
+		"enemy_hp": {
+			"base": 1.0,
+			"linear": 0.06,
+			"exponent": 1.12,
+			"cap": 0
+		},
+		"enemy_damage": {
+			"base": 1.0,
+			"linear": 0.025,
+			"exponent": 1.0,
+			"cap": 0
+		},
+		"player_power": {
+			"_doc": "Expected damage multiplier from shop upgrades at level N. Scales additive gate values, ally power and the expected hero used by fairness checks.",
+			"base": 1.0,
+			"linear": 0.05,
+			"exponent": 1.1,
+			"cap": 0
+		},
+		"player_hp": {
+			"base": 1.0,
+			"linear": 0.02,
+			"exponent": 1.0,
+			"cap": 0
+		},
+		"density": {
+			"_doc": "Count ranges [min,max] in segments interpolate from min at 1.0 to max at cap.",
+			"base": 1.0,
+			"linear": 0.05,
+			"exponent": 0.8,
+			"cap": 1.9
+		},
+		"bad_gate_chance": {
+			"base": 0.12,
+			"linear": 0.02,
+			"exponent": 0.7,
+			"cap": 0.45
+		},
+		"coin_multiplier": {
+			"base": 1.0,
+			"linear": 0.03,
+			"exponent": 1.0,
+			"cap": 0
+		},
+		"max_density": {
+			"_doc": "Readability cap: total enemy density cost allowed inside one density window.",
+			"base": 10.0,
+			"linear": 0.25,
+			"exponent": 0.6,
+			"cap": 18.0
+		}
+	},
+	"rhythm": {
+		"_doc": "Periodic spike (harder) and reward (easier) levels. Every boss_every-th level is a major boss level.",
+		"spike_every": 5,
+		"spike_offset": 0,
+		"spike_mult": 1.2,
+		"reward_every": 7,
+		"reward_offset": 3,
+		"reward_mult": 0.8,
+		"boss_every": 10
+	},
+	"generator": {
+		"_doc": "Generator and fairness tuning.",
+		"element_unlock_level": 3,
+		"palette_size": 2,
+		"element_chance": 0.75,
+		"density_window": 25.0,
+		"min_hp_margin": 0.15,
+		"min_hp_margin_spike": 0.05,
+		"repair_scale": 0.88,
+		"max_repairs": 8,
+		"end_padding": 30.0,
+		"wall_lookback": 140.0,
+		"debug_assume_upgrades": true
+	},
+	"estimator": {
+		"_doc": "Analytic run model used for fairness checks and the simulator. Calibrate against live autopilot runs.",
+		"hero_aim": 0.7,
+		"leak_hit_rate": 1.0
 	}
 }

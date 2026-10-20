@@ -17,6 +17,8 @@ var color := Color.WHITE
 var hit_height := 0.9
 var immune_unless_weak := false
 var knockback_resist := 0.0
+## Level difficulty multiplier on contact and shot damage.
+var dmg_mult := 1.0
 var def: Dictionary = {}
 ## Damage accumulated since the last floating number (numbers are throttled per enemy).
 var pending_damage := 0.0
@@ -61,7 +63,7 @@ func _init() -> void:
 	add_child(_icon)
 
 
-func spawn(id: String, enemy_def: Dictionary, hp_mult: float, pos: Vector3, element_id: String) -> void:
+func spawn(id: String, enemy_def: Dictionary, hp_mult: float, pos: Vector3, element_id: String, damage_mult := 1.0) -> void:
 	def = enemy_def
 	if id != enemy_id:
 		_rebuild(id)
@@ -70,7 +72,8 @@ func spawn(id: String, enemy_def: Dictionary, hp_mult: float, pos: Vector3, elem
 	hp = max_hp
 	behavior = String(def.get("behavior", "walker"))
 	speed = float(def.get("speed", 2.0))
-	contact_damage = float(def.get("contact_damage", 10))
+	dmg_mult = damage_mult
+	contact_damage = float(def.get("contact_damage", 10)) * dmg_mult
 	radius = float(def.get("radius", 0.5)) * scale_f
 	coins = int(def.get("coins", 1))
 	color = Color(String(def.get("color", "#FFFFFF")))

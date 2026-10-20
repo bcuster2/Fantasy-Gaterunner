@@ -7,6 +7,11 @@ var enemies: Dictionary = {}
 var allies: Dictionary = {}
 var elements: Dictionary = {}
 var levels: Dictionary = {}
+var gates: Dictionary = {}
+var pacing: Dictionary = {}
+var segments: Array = []
+## Everything above in one table, as passed to the pure generator and simulator.
+var db: Dictionary = {}
 
 var _icons: Dictionary = {}
 
@@ -16,11 +21,15 @@ func _init() -> void:
 
 
 func reload() -> void:
-	classes = JsonUtil.strip_comments(JsonUtil.load_dict("res://data/classes.json"))
-	enemies = JsonUtil.strip_comments(JsonUtil.load_dict("res://data/enemies.json"))
-	allies = JsonUtil.strip_comments(JsonUtil.load_dict("res://data/allies.json"))
-	elements = JsonUtil.strip_comments(JsonUtil.load_dict("res://data/elements.json"))
-	levels = JsonUtil.load_dir("res://data/levels")
+	db = ContentDB.load_all()
+	classes = db["classes"]
+	enemies = db["enemies"]
+	allies = db["allies"]
+	elements = db["elements"]
+	levels = db["levels"]
+	gates = db["gates"]
+	pacing = db["pacing"]
+	segments = db["segments"]
 	_icons.clear()
 
 

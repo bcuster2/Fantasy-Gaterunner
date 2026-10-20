@@ -41,7 +41,7 @@ var _damage_log: Dictionary = {}
 func _ready() -> void:
 	Engine.time_scale = 1.0
 	get_tree().paused = false
-	plan = LevelGenerator.get_plan(GameState.level)
+	plan = LevelGenerator.get_plan(GameState.level, GameState.seed_override)
 	_events = plan["events"]
 	_length = float(plan["length"])
 	_track_width = Balance.f("track.width")
@@ -51,12 +51,16 @@ func _ready() -> void:
 	_number_interval = Balance.f("feel.damage_number_interval")
 
 	_build_environment()
-	TrackBuilder.build(self, _length, _track_width * 0.5, int(plan.get("level", 1)) * 7919)
+	TrackBuilder.build(self, _length, _track_width * 0.5, int(plan.get("seed", 1)))
 
 	hero = Hero.new()
 	hero.name = "Hero"
 	add_child(hero)
 	hero.setup(Content.hero_class(GameState.hero_class))
+	if GameState.assume_upgrades:
+		LevelBuilder.apply_level_scaling(hero.stats, float(plan.get("hero_power", 1.0)), float(plan.get("hero_hp_power", 1.0)))
+	hero.stats.ally_power = float(plan.get("ally_power", 1.0))
+	hero.refresh_hp()
 	hero.died.connect(_on_hero_died)
 
 	squad = Squad.new()
@@ -97,11 +101,19 @@ func _ready() -> void:
 	hud = Hud.new()
 	add_child(hud)
 	hud.restart_requested.connect(_restart)
+	hud.next_requested.connect(_next_level)
+	hud.set_level_title(_level_title())
 	hero.hp_changed.connect(hud.set_hp)
 	hud.set_hp(hero.stats.hp, hero.stats.max_hp)
 	hud.set_stats(hero.stats)
 	hud.set_coins(0)
 	_sync_build(false)
+	if GameState.debug_overlay:
+		_build_debug_overlay()
+	if GameState.is_dev_build():
+		var debug_menu := DebugMenu.new()
+		add_child(debug_menu)
+		debug_menu.setup(plan)
 
 
 func _exit_tree() -> void:
@@ -182,7 +194,7 @@ func _spawn_enemies(event: Dictionary) -> void:
 			break
 		var e := _enemy_pool.acquire() as Enemy
 		var x := clampf(center_x + offset.x, -half, half)
-		e.spawn(id, def, hp_mult, Vector3(x, 0, -(float(event["d"]) + offset.y)), element)
+		e.spawn(id, def, hp_mult, Vector3(x, 0, -(float(event["d"]) + offset.y)), element, float(event.get("dmg_mult", 1.0)))
 		enemies.append(e)
 
 
@@ -317,7 +329,7 @@ func _nearest_enemies(from: Vector3, radius: float, count: int, exclude: Enemy) 
 
 func _on_enemy_killed(e: Enemy) -> void:
 	kills += 1
-	coins += int(roundf(e.coins * Balance.f("economy.coin_multiplier", 1.0)))
+	coins += int(roundf(e.coins * Balance.f("economy.coin_multiplier", 1.0) * float(plan.get("coin_mult", 1.0))))
 	hud.set_coins(coins)
 	var burst_color := Content.element_color(e.element) if e.element != "none" else e.color
 	bursts.burst(e.position + Vector3(0, 0.7, 0), burst_color)
@@ -338,7 +350,7 @@ func _tick_enemies(delta: float) -> void:
 		if e.wants_shot(delta, hero_pos) and state == State.RUNNING:
 			var shot_color := Content.element_color(e.element) if e.element != "none" else Color("#FF5A3B")
 			enemy_shots.spawn(e.position + Vector3(0, 1.0, 0.4), hero_pos, float(e.def.get("shot_speed", 11.0)),
-				float(e.def.get("shot_damage", 8)), shot_color, float(e.def.get("shot_range", 24.0)))
+				float(e.def.get("shot_damage", 8)) * e.dmg_mult, shot_color, float(e.def.get("shot_range", 24.0)))
 			AudioManager.play("enemy_shot", -10.0, 0.1, 0.1)
 		var dz := e.position.z - hero_pos.z
 		if dz > _despawn_behind:
@@ -484,7 +496,7 @@ func _on_hero_died() -> void:
 	Engine.time_scale = Balance.f("feel.death_slowmo_scale")
 	await get_tree().create_timer(Balance.f("feel.death_slowmo_time"), true, false, true).timeout
 	Engine.time_scale = 1.0
-	hud.show_result(false, _summary())
+	hud.show_result(false, _summary(), false)
 
 
 func _win() -> void:
@@ -493,7 +505,7 @@ func _win() -> void:
 	AudioManager.play("win", 0.0, 0.0)
 	for i in 4:
 		bursts.burst(hero.position + Vector3(randf_range(-3, 3), 2.0, -2.0), [Color("#FFD166"), Color("#3FA9FF"), Color("#FF6B6B"), Color("#7CF29A")][i])
-	hud.show_result(true, _summary())
+	hud.show_result(true, _summary(), int(plan.get("level", 0)) > 0)
 	_log_result("WON")
 
 
@@ -512,6 +524,57 @@ func _log_result(outcome: String) -> void:
 		outcome, -hero.position.z, _elapsed, s.hp, kills, coins, s.damage, s.fire_rate, s.projectiles, s.element, s.allies,
 	])
 	print("[run] damage taken by source: %s" % _damage_log)
+
+
+func _next_level() -> void:
+	GameState.level = int(plan.get("level", 0)) + 1
+	GameState.seed_override = -1
+	_restart()
+
+
+func _level_title() -> String:
+	var level := int(plan.get("level", 0))
+	if level <= 0:
+		return "TEST LEVEL"
+	var title := "LEVEL %d" % level
+	match String(plan.get("kind", "")):
+		"spike":
+			title += "  ·  HARD"
+		"reward":
+			title += "  ·  BONUS"
+		"boss":
+			title += "  ·  BOSS"
+	if GameState.seed_override >= 0:
+		title += "  ·  SEED %d" % GameState.seed_override
+	return title
+
+
+## Dev overlay: segment boundaries, roles and ids drawn beside the track.
+func _build_debug_overlay() -> void:
+	var dbg: Dictionary = plan.get("debug", {})
+	var line_mat := Placeholders.overlay(Color(1, 0.2, 0.9, 0.55))
+	for seg: Dictionary in dbg.get("segments", []):
+		var z := -float(seg["start"])
+		add_child(Placeholders.part(Placeholders.box(Vector3(_track_width + 3.0, 0.05, 0.12)), line_mat, Vector3(0, 0.06, z)))
+		var label := Label3D.new()
+		label.text = "%s\n%s" % [String(seg["role"]).to_upper(), seg["id"]]
+		label.font_size = 64
+		label.pixel_size = 0.012
+		label.modulate = Color(1, 0.6, 1)
+		label.outline_size = 12
+		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		label.position = Vector3(-_track_width * 0.5 - 2.6, 1.2, z - 2.0)
+		add_child(label)
+	for event: Dictionary in plan.get("events", []):
+		if event.has("repaired"):
+			var tag := Label3D.new()
+			tag.text = "FIX: %s" % event["repaired"]
+			tag.font_size = 56
+			tag.pixel_size = 0.01
+			tag.modulate = Color(1, 0.85, 0.2)
+			tag.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			tag.position = Vector3(_track_width * 0.5 + 2.4, 1.5, -float(event["d"]))
+			add_child(tag)
 
 
 func _restart() -> void:

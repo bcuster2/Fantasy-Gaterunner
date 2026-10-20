@@ -4,19 +4,31 @@ A portrait, one-thumb fantasy gate runner for Android (iOS-ready), built in **Go
 The hero auto-runs, you drag to steer, gates rewrite your build, and every level ends in a boss.
 Levels are procedurally generated from data. Level N is the same for every player.
 
-> Status: **Milestone 2: gates and enemies** (elemental, summoning, and cursed gates; six enemy types; allies). Milestone 1 core loop is done.
+> Status: **Milestone 3: procedural generator** (segment library, seeded assembly, difficulty curves, fairness rules, debug menu). Milestones 1-2 are done.
 
 ## Running
 
 1. Install Godot **4.7.x stable** (standard build, not .NET).
 2. Open `project.godot` in the editor and press **F5**. The desktop window is 540×960 (portrait).
 3. Steer by **dragging with the mouse** (it's emulated as touch) or with **A/D / ←/→**.
+4. In dev builds a purple **DBG** button opens the dev menu: jump to any level, play any seed, god mode,
+   grant coins, generator overlay, and stats for the current plan. Level 0 is the hand-made test level.
 
-Command-line runs (useful for smoke tests):
+Command-line flags go after `--`: `--level=N`, `--seed=S`, `--autopilot`, `--overlay`, `--god`, `--open-debug`.
 
 ```bash
-# headless, full level, simple bot steering toward the best gate; prints a [run] summary line
-godot --headless --path . --fixed-fps 60 --quit-after 3700 -- --autopilot
+# play generated level 57 headless with the bot; prints a [run] summary line
+godot --headless --path . --fixed-fps 60 --quit-after 9000 -- --autopilot --level=57
+```
+
+```bash
+# generator check: determinism, fairness rules, and timing for levels 1-500 (writes reports/gen_check.csv)
+godot --headless --path . res://tools/gen_check.tscn -- --levels=500
+```
+
+```bash
+# estimator walkthrough of one level: gate picks and HP after each enemy group
+godot --headless --path . res://tools/gen_check.tscn -- --trace=57
 ```
 
 ## Project structure
@@ -40,14 +52,25 @@ core/
   visuals/         Placeholders: code-built low-poly models with shared meshes/materials
   shaders/         Ground, gate, and checker shaders
   util/            JsonUtil, NodePool
-gen/               Generator logic (pure, no nodes): formations now; segments/pacing in M3
+gen/               Procedural generator (pure functions, no nodes or autoloads)
+  level_builder.gd   Seeded assembly: template -> segments -> events -> fairness -> winnability
+  gate_factory.gd    Turns gate patterns into concrete, level-scaled gates
+  fairness.gd        Fairness repairs and validation
+  estimator.gd       Analytic run model (winnability check; basis of the M4 simulator)
+  curves.gd          Difficulty curves and spike/reward/boss rhythm
+  level_seed.gd      Stable FNV-1a seeds (level N is identical for every player)
+  content_db.gd      Loads all content tables (shared by game and tools)
+  formations.gd      Formation layouts
 data/              All content and tuning as JSON
   balance.json     The one balance/tuning file
   classes.json     Hero classes (one in v1; add more here)
   enemies.json     Enemy archetypes
   allies.json      Summonable allies
   elements.json    Elements: color, icon, weakness triangle, on-hit effect
-  levels/          Hand-made levels (M1 test level)
+  gates.json       Gate templates (good/bad/heal/strong/curse/summon) and pattern weights
+  pacing.json      Pacing templates (ordered slot roles)
+  segments/        Segment library; every JSON file here joins the pool
+  levels/          Hand-made levels (test level = level 0)
 ui/                HUD and shared theme (built in code)
 tools/             Headless tools (simulator arrives in M4)
 ```
@@ -100,6 +123,64 @@ element-locked walls. Each element also adds an on-hit effect: fire burns, ice s
 - **Ally:** add an entry to `data/allies.json` (`kind` melee/ranged, `row` front/back), then use it in a summon gate.
 - **Element:** add an entry to `data/elements.json` with an icon SVG in `assets/icons/`, and keep the weakness
   triangle closed.
+
+## How the generator works
+
+`LevelGenerator.get_plan(level)` calls `LevelBuilder.build(level, LevelSeed.for_level(level), ...)`:
+
+1. **Seed.** `fnv1a("gaterunner/level/N")` feeds a `RandomNumberGenerator` (PCG32). Our own hash means
+   level N never changes across engine versions or devices. Content pools are sorted by id so file
+   order can't change results either. A debug seed can replace the canonical one while keeping
+   level N's difficulty.
+2. **Rhythm.** `Curves.level_kind`: every 10th level is a **boss** level, every 5th a **spike** (harder,
+   breather becomes pressure), and levels where `N % 7 == 3` are **reward** levels (easier, extra coins).
+3. **Pacing template.** Weighted pick from `pacing.json` (unlocked by level), e.g.
+   `intro, gate, buildup, buildup, gate, pressure, breather, gate, pressure, climax, preboss`.
+4. **Segments.** Each slot draws a weighted segment whose `roles` include it (with fallbacks, no
+   back-to-back repeats). Segments may be mirrored. Count fields given as `[min,max]` grow with the
+   density curve. Element tokens resolve from the level's 2-element palette: `$A`, `$B`, `$mix`, `$wall`.
+5. **Scaling.** Enemy `hp_mult`/`dmg_mult` come from the `enemy_hp`/`enemy_damage` curves × rhythm. Gate
+   values come from templates, with additive values scaled by `player_power`/`player_hp`.
+6. **Fairness** (`gen/fairness.gd`):
+   - every gate set has a safe option (never two harmful gates as the only choice);
+   - every element-locked wall's preceding gate set offers its weakness (or one is inserted);
+   - enemy density per 25 m window stays under the `max_density` curve.
+7. **Winnability.** `Estimator` runs an expected-upgrade hero (`player_power`/`player_hp` curves) down the
+   best gate path. If the hero dies or ends below the HP margin, enemy HP/damage is scaled down. From
+   the third repair on, crowds are thinned too. The plan records `debug.difficulty_scale`.
+
+The plan also carries `zone`, `boss`, and `modifiers` for Milestone 5.
+Generation takes about 2 ms per level (budget 50 ms).
+
+### Adding a segment
+
+Drop it into any file in `data/segments/` (or a new file there):
+
+```json
+{ "id": "goblin_block", "roles": ["buildup", "pressure"], "min_level": 1, "weight": 3, "length": 32,
+  "events": [ { "d": 6, "type": "enemies", "enemy": "grunt", "formation": "block",
+                "rows": [2, 3], "cols": [3, 4], "element": "$A", "hp": 1.0 } ] }
+```
+
+Gate segments use `{ "d": 12, "type": "gates", "pattern": "any" }`, where pattern is one of
+`any | stat | element | summon | curse | breather | preboss`. Set `"mirror": false` for asymmetric
+segments that must not flip. Run `tools/gen_check.tscn` afterwards to confirm fairness and determinism.
+
+### Adding a gate or pacing template
+
+- **Gate:** add a template to the right pool in `data/gates.json` (`value` is a number or `[min,max]`;
+  `scale: "power"` makes it grow with level; `min_level` controls when it unlocks).
+- **Pacing:** add an entry to `data/pacing.json` with `slots`, `weight`, `min_level`.
+- **Modifiers:** arrive in Milestone 5 (`plan.modifiers`).
+
+### Tuning curves
+
+All curves live in `balance.json -> curves`, as `value = base * (1 + linear * (N-1)^exponent)` with an
+optional `cap`. The `rhythm` section sets the spike/reward/boss cadence. The `generator` section holds
+fairness margins and repair strength, and `estimator` holds the analytic model's assumptions. After
+changing anything, run `gen_check` and look at `difficulty_scale` in `reports/gen_check.csv`. Values
+well below 1.0 mean the curves outpace the expected player. The Milestone 4 simulator adds win-rate and
+coin reports.
 
 ## Performance notes
 

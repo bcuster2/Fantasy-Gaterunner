@@ -1,0 +1,95 @@
+{
+	"_doc": "Pacing templates: ordered slot roles. Each slot is filled with a segment whose roles include it. element_wall falls back to pressure before walls unlock. Reward levels turn a pressure slot into a breather; spike levels turn a breather into pressure.",
+	"first": {
+		"min_level": 1,
+		"max_level": 2,
+		"weight": 100,
+		"slots": [
+			"intro",
+			"gate",
+			"buildup",
+			"gate",
+			"buildup",
+			"breather",
+			"gate",
+			"pressure",
+			"preboss"
+		]
+	},
+	"standard": {
+		"min_level": 3,
+		"weight": 3,
+		"slots": [
+			"intro",
+			"gate",
+			"buildup",
+			"buildup",
+			"gate",
+			"pressure",
+			"breather",
+			"gate",
+			"pressure",
+			"climax",
+			"preboss"
+		]
+	},
+	"long_build": {
+		"min_level": 4,
+		"weight": 2,
+		"slots": [
+			"intro",
+			"gate",
+			"buildup",
+			"gate",
+			"buildup",
+			"element_wall",
+			"gate",
+			"pressure",
+			"breather",
+			"gate",
+			"pressure",
+			"pressure",
+			"climax",
+			"preboss"
+		]
+	},
+	"gauntlet": {
+		"min_level": 8,
+		"weight": 1.5,
+		"slots": [
+			"intro",
+			"gate",
+			"pressure",
+			"gate",
+			"pressure",
+			"pressure",
+			"breather",
+			"gate",
+			"element_wall",
+			"pressure",
+			"climax",
+			"preboss"
+		]
+	},
+	"waves": {
+		"min_level": 12,
+		"weight": 1.5,
+		"slots": [
+			"intro",
+			"gate",
+			"buildup",
+			"pressure",
+			"gate",
+			"breather",
+			"buildup",
+			"pressure",
+			"gate",
+			"breather",
+			"pressure",
+			"climax",
+			"gate",
+			"climax",
+			"preboss"
+		]
+	}
+}

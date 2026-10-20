@@ -105,6 +105,9 @@ static func short_text(gate: Dictionary) -> String:
 
 
 static func effect_text(effect: Dictionary) -> String:
+	if String(effect.get("stat", "")) == "summon":
+		var def := Content.ally(String(effect.get("ally", "")))
+		return "+%d %s" % [int(effect.get("value", 1)), String(def.get("plural", "ALLIES"))]
 	return "%s %s" % [_effect_value(effect), STAT_NAMES.get(String(effect.get("stat", "")), "???")]
 
 

@@ -1,0 +1,276 @@
+{
+	"_doc": "Gate templates for the generator. value: fixed number, or [min,max] picked by rng. scale: 'power' multiplies by the player_power curve, 'hp' by player_hp. min_level gates the pool.",
+	"good": [
+		{
+			"id": "dmg_add",
+			"stat": "damage",
+			"op": "add",
+			"value": [
+				2,
+				4
+			],
+			"scale": "power",
+			"weight": 3
+		},
+		{
+			"id": "dmg_mul",
+			"stat": "damage",
+			"op": "mul",
+			"value": [
+				1.5,
+				2
+			],
+			"weight": 1.5,
+			"min_level": 3
+		},
+		{
+			"id": "rate_add",
+			"stat": "fire_rate",
+			"op": "add",
+			"value": [
+				0.5,
+				1.5
+			],
+			"weight": 2
+		},
+		{
+			"id": "rate_mul",
+			"stat": "fire_rate",
+			"op": "mul",
+			"value": [
+				1.25,
+				1.5
+			],
+			"weight": 1.5,
+			"min_level": 2
+		},
+		{
+			"id": "shots_add",
+			"stat": "projectiles",
+			"op": "add",
+			"value": 1,
+			"weight": 2
+		},
+		{
+			"id": "shots_add2",
+			"stat": "projectiles",
+			"op": "add",
+			"value": 2,
+			"weight": 0.6,
+			"min_level": 8
+		},
+		{
+			"id": "max_hp_add",
+			"stat": "max_hp",
+			"op": "add",
+			"value": [
+				15,
+				30
+			],
+			"scale": "hp",
+			"weight": 0.8,
+			"min_level": 4
+		}
+	],
+	"bad": [
+		{
+			"id": "dmg_sub",
+			"stat": "damage",
+			"op": "add",
+			"value": [
+				-3,
+				-1
+			],
+			"scale": "power",
+			"weight": 2,
+			"min_level": 2
+		},
+		{
+			"id": "rate_cut",
+			"stat": "fire_rate",
+			"op": "mul",
+			"value": [
+				0.6,
+				0.8
+			],
+			"weight": 1.5,
+			"min_level": 2
+		},
+		{
+			"id": "shots_sub",
+			"stat": "projectiles",
+			"op": "add",
+			"value": -1,
+			"weight": 1,
+			"min_level": 4
+		}
+	],
+	"heal": [
+		{
+			"id": "heal",
+			"stat": "hp",
+			"op": "add",
+			"value": [
+				25,
+				45
+			],
+			"scale": "hp",
+			"weight": 1
+		}
+	],
+	"strong": [
+		{
+			"id": "dmg_mul_big",
+			"stat": "damage",
+			"op": "mul",
+			"value": [
+				2,
+				2.5
+			],
+			"weight": 1.5
+		},
+		{
+			"id": "rate_mul_big",
+			"stat": "fire_rate",
+			"op": "mul",
+			"value": [
+				1.5,
+				2
+			],
+			"weight": 1.5
+		},
+		{
+			"id": "shots_add_big",
+			"stat": "projectiles",
+			"op": "add",
+			"value": 2,
+			"weight": 1
+		},
+		{
+			"id": "dmg_add_big",
+			"stat": "damage",
+			"op": "add",
+			"value": [
+				5,
+				8
+			],
+			"scale": "power",
+			"weight": 1
+		}
+	],
+	"curse": [
+		{
+			"id": "glass_cannon",
+			"effects": [
+				{
+					"stat": "hp_pct",
+					"op": "add",
+					"value": -30
+				},
+				{
+					"stat": "damage",
+					"op": "mul",
+					"value": 3
+				}
+			],
+			"weight": 2
+		},
+		{
+			"id": "frenzy",
+			"effects": [
+				{
+					"stat": "allies_pct",
+					"op": "add",
+					"value": -50
+				},
+				{
+					"stat": "fire_rate",
+					"op": "mul",
+					"value": 2
+				}
+			],
+			"weight": 1.5,
+			"min_level": 6
+		},
+		{
+			"id": "blood_volley",
+			"effects": [
+				{
+					"stat": "hp_pct",
+					"op": "add",
+					"value": -25
+				},
+				{
+					"stat": "projectiles",
+					"op": "add",
+					"value": 2
+				}
+			],
+			"weight": 1.5,
+			"min_level": 8
+		},
+		{
+			"id": "hollow_army",
+			"effects": [
+				{
+					"stat": "max_hp",
+					"op": "mul",
+					"value": 0.7
+				},
+				{
+					"stat": "summon",
+					"ally": "skeleton",
+					"op": "add",
+					"value": 4
+				}
+			],
+			"weight": 1,
+			"min_level": 10
+		}
+	],
+	"summon": [
+		{
+			"ally": "skeleton",
+			"count": [
+				2,
+				3
+			],
+			"weight": 3,
+			"min_level": 2
+		},
+		{
+			"ally": "archer",
+			"count": [
+				1,
+				2
+			],
+			"weight": 2,
+			"min_level": 4
+		},
+		{
+			"ally": "golem",
+			"count": 1,
+			"weight": 1,
+			"min_level": 7
+		}
+	],
+	"patterns": {
+		"_doc": "Gate kinds picked when a segment asks for pattern 'any': weight and unlock level.",
+		"stat": {
+			"weight": 4,
+			"min_level": 1
+		},
+		"summon": {
+			"weight": 1.5,
+			"min_level": 2
+		},
+		"element": {
+			"weight": 1.5,
+			"min_level": 3
+		},
+		"curse": {
+			"weight": 1,
+			"min_level": 5
+		}
+	}
+}

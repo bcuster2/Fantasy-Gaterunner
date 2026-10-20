@@ -38,7 +38,7 @@ func reconcile(stats: HeroStats, hero_pos: Vector3) -> int:
 		var missing := int(stats.allies[id]) - int(live.get(id, 0))
 		for i in missing:
 			var a := _pool.acquire() as Ally
-			a.spawn(id, Content.ally(id), hero_pos + Vector3(randf_range(-0.5, 0.5), 0, 0))
+			a.spawn(id, Content.ally(id), hero_pos + Vector3(randf_range(-0.5, 0.5), 0, 0), stats.ally_power)
 			a.set_element_tint(_tint)
 			allies.append(a)
 			spawned += 1

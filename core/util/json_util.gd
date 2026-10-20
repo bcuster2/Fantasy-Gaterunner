@@ -20,7 +20,9 @@ static func load_dir(dir_path: String) -> Dictionary:
 	var dir := DirAccess.open(dir_path)
 	if dir == null:
 		return out
-	for file in dir.get_files():
+	var files := Array(dir.get_files())
+	files.sort()
+	for file: String in files:
 		if file.ends_with(".json"):
 			out[file.get_basename()] = load_dict(dir_path.path_join(file))
 	return out

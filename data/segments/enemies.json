@@ -1,0 +1,549 @@
+{
+	"_doc": "Enemy formations. Count-like fields (count, rows, cols) given as [min,max] scale with the density curve; x/spacing/hp given as [min,max] are random. element: none | $A | $B (level palette) | $mix (palette or none) | $wall (element-locked wall). hp = relative toughness. Segments are mirrored randomly unless mirror is false.",
+	"segments": [
+		{
+			"id": "goblin_trickle",
+			"roles": [
+				"intro"
+			],
+			"min_level": 1,
+			"weight": 3,
+			"length": 26,
+			"events": [
+				{
+					"d": 6,
+					"type": "enemies",
+					"enemy": "grunt",
+					"formation": "line",
+					"count": [
+						3,
+						5
+					],
+					"element": "$A"
+				}
+			]
+		},
+		{
+			"id": "goblin_pairs",
+			"roles": [
+				"intro",
+				"buildup"
+			],
+			"min_level": 1,
+			"weight": 2,
+			"length": 30,
+			"events": [
+				{
+					"d": 4,
+					"type": "enemies",
+					"enemy": "grunt",
+					"formation": "line",
+					"count": 2,
+					"x": -2,
+					"element": "$A"
+				},
+				{
+					"d": 14,
+					"type": "enemies",
+					"enemy": "grunt",
+					"formation": "line",
+					"count": 2,
+					"x": 2,
+					"element": "$A"
+				}
+			]
+		},
+		{
+			"id": "goblin_block",
+			"roles": [
+				"buildup",
+				"pressure"
+			],
+			"min_level": 1,
+			"weight": 3,
+			"length": 32,
+			"events": [
+				{
+					"d": 6,
+					"type": "enemies",
+					"enemy": "grunt",
+					"formation": "block",
+					"rows": [
+						2,
+						3
+					],
+					"cols": [
+						3,
+						4
+					],
+					"element": "$A"
+				}
+			]
+		},
+		{
+			"id": "goblin_wedge",
+			"roles": [
+				"buildup",
+				"pressure"
+			],
+			"min_level": 1,
+			"weight": 2,
+			"length": 30,
+			"events": [
+				{
+					"d": 6,
+					"type": "enemies",
+					"enemy": "grunt",
+					"formation": "wedge",
+					"rows": [
+						3,
+						4
+					],
+					"element": "$mix"
+				}
+			]
+		},
+		{
+			"id": "twin_columns",
+			"roles": [
+				"buildup",
+				"pressure"
+			],
+			"min_level": 1,
+			"weight": 2,
+			"length": 32,
+			"events": [
+				{
+					"d": 4,
+					"type": "enemies",
+					"enemy": "grunt",
+					"formation": "column",
+					"count": [
+						3,
+						5
+					],
+					"x": -2.4,
+					"element": "$A"
+				},
+				{
+					"d": 8,
+					"type": "enemies",
+					"enemy": "grunt",
+					"formation": "column",
+					"count": [
+						3,
+						5
+					],
+					"x": 2.4,
+					"element": "$B"
+				}
+			]
+		},
+		{
+			"id": "wolf_line",
+			"roles": [
+				"buildup",
+				"pressure"
+			],
+			"min_level": 2,
+			"weight": 2,
+			"length": 30,
+			"events": [
+				{
+					"d": 6,
+					"type": "enemies",
+					"enemy": "runner",
+					"formation": "line",
+					"count": [
+						3,
+						5
+					],
+					"spacing": 1.6,
+					"element": "$mix"
+				}
+			]
+		},
+		{
+			"id": "wolf_pack",
+			"roles": [
+				"pressure",
+				"climax"
+			],
+			"min_level": 5,
+			"weight": 1.5,
+			"length": 34,
+			"events": [
+				{
+					"d": 6,
+					"type": "enemies",
+					"enemy": "runner",
+					"formation": "block",
+					"rows": 2,
+					"cols": [
+						3,
+						4
+					],
+					"spacing": 1.5,
+					"element": "$A"
+				}
+			]
+		},
+		{
+			"id": "imp_drift",
+			"roles": [
+				"buildup",
+				"pressure"
+			],
+			"min_level": 3,
+			"weight": 1.5,
+			"length": 34,
+			"events": [
+				{
+					"d": 6,
+					"type": "enemies",
+					"enemy": "imp",
+					"formation": "line",
+					"count": [
+						2,
+						4
+					],
+					"spacing": 2.2,
+					"element": "$B"
+				},
+				{
+					"d": 16,
+					"type": "enemies",
+					"enemy": "imp",
+					"formation": "line",
+					"count": [
+						2,
+						3
+					],
+					"spacing": 2.2,
+					"x": 0.8,
+					"element": "$B"
+				}
+			]
+		},
+		{
+			"id": "archer_screen",
+			"roles": [
+				"pressure"
+			],
+			"min_level": 4,
+			"weight": 1.5,
+			"length": 36,
+			"events": [
+				{
+					"d": 6,
+					"type": "enemies",
+					"enemy": "grunt",
+					"formation": "line",
+					"count": [
+						3,
+						5
+					],
+					"element": "$A"
+				},
+				{
+					"d": 16,
+					"type": "enemies",
+					"enemy": "archer",
+					"formation": "line",
+					"count": 2,
+					"spacing": 5.6,
+					"element": "$B"
+				}
+			]
+		},
+		{
+			"id": "archer_nest",
+			"roles": [
+				"pressure",
+				"climax"
+			],
+			"min_level": 7,
+			"weight": 1,
+			"length": 38,
+			"events": [
+				{
+					"d": 4,
+					"type": "enemies",
+					"enemy": "grunt",
+					"formation": "block",
+					"rows": 2,
+					"cols": [
+						3,
+						4
+					],
+					"element": "$A"
+				},
+				{
+					"d": 18,
+					"type": "enemies",
+					"enemy": "archer",
+					"formation": "line",
+					"count": [
+						2,
+						3
+					],
+					"spacing": 2.8,
+					"element": "$mix"
+				}
+			]
+		},
+		{
+			"id": "brute_escort",
+			"roles": [
+				"pressure",
+				"climax"
+			],
+			"min_level": 4,
+			"weight": 1.5,
+			"length": 36,
+			"events": [
+				{
+					"d": 6,
+					"type": "enemies",
+					"enemy": "brute",
+					"formation": "line",
+					"count": 1,
+					"element": "$A"
+				},
+				{
+					"d": 10,
+					"type": "enemies",
+					"enemy": "grunt",
+					"formation": "wedge",
+					"rows": [
+						2,
+						3
+					],
+					"element": "$A"
+				}
+			]
+		},
+		{
+			"id": "brute_pair",
+			"roles": [
+				"climax"
+			],
+			"min_level": 9,
+			"weight": 1,
+			"length": 34,
+			"events": [
+				{
+					"d": 6,
+					"type": "enemies",
+					"enemy": "brute",
+					"formation": "line",
+					"count": 2,
+					"spacing": 3.2,
+					"element": "$mix",
+					"hp": 1.1
+				}
+			]
+		},
+		{
+			"id": "split_flood",
+			"roles": [
+				"pressure",
+				"climax"
+			],
+			"min_level": 6,
+			"weight": 1.5,
+			"length": 38,
+			"events": [
+				{
+					"d": 6,
+					"type": "enemies",
+					"enemy": "grunt",
+					"formation": "block",
+					"rows": [
+						3,
+						4
+					],
+					"cols": 3,
+					"x": -2,
+					"spacing": 1.1,
+					"element": "$A"
+				},
+				{
+					"d": 6,
+					"type": "enemies",
+					"enemy": "grunt",
+					"formation": "block",
+					"rows": [
+						3,
+						4
+					],
+					"cols": 3,
+					"x": 2,
+					"spacing": 1.1,
+					"element": "$B"
+				}
+			]
+		},
+		{
+			"id": "horde",
+			"roles": [
+				"climax"
+			],
+			"min_level": 1,
+			"weight": 2,
+			"length": 40,
+			"events": [
+				{
+					"d": 6,
+					"type": "enemies",
+					"enemy": "grunt",
+					"formation": "block",
+					"rows": [
+						3,
+						5
+					],
+					"cols": [
+						4,
+						5
+					],
+					"spacing": 1.15,
+					"element": "$A",
+					"hp": 1.1
+				}
+			]
+		},
+		{
+			"id": "mixed_assault",
+			"roles": [
+				"climax"
+			],
+			"min_level": 10,
+			"weight": 1.5,
+			"length": 42,
+			"events": [
+				{
+					"d": 4,
+					"type": "enemies",
+					"enemy": "runner",
+					"formation": "line",
+					"count": [
+						3,
+						4
+					],
+					"spacing": 1.8,
+					"element": "$B"
+				},
+				{
+					"d": 14,
+					"type": "enemies",
+					"enemy": "grunt",
+					"formation": "block",
+					"rows": [
+						2,
+						3
+					],
+					"cols": 4,
+					"element": "$A"
+				},
+				{
+					"d": 26,
+					"type": "enemies",
+					"enemy": "brute",
+					"formation": "line",
+					"count": 1,
+					"element": "$A"
+				}
+			]
+		},
+		{
+			"id": "ward_wall",
+			"roles": [
+				"element_wall"
+			],
+			"min_level": 6,
+			"weight": 2,
+			"length": 34,
+			"events": [
+				{
+					"d": 10,
+					"type": "enemies",
+					"enemy": "ward",
+					"formation": "line",
+					"count": 6,
+					"spacing": 1.3,
+					"element": "$wall"
+				}
+			],
+			"mirror": false,
+			"blocking": true
+		},
+		{
+			"id": "ward_gap",
+			"roles": [
+				"element_wall",
+				"pressure"
+			],
+			"min_level": 4,
+			"weight": 1.5,
+			"length": 34,
+			"events": [
+				{
+					"d": 10,
+					"type": "enemies",
+					"enemy": "ward",
+					"formation": "line",
+					"count": 3,
+					"spacing": 1.3,
+					"x": -1.95,
+					"element": "$wall"
+				},
+				{
+					"d": 8,
+					"type": "enemies",
+					"enemy": "grunt",
+					"formation": "column",
+					"count": [
+						3,
+						4
+					],
+					"x": 2.3,
+					"element": "$A"
+				}
+			]
+		},
+		{
+			"id": "ward_gauntlet",
+			"roles": [
+				"element_wall"
+			],
+			"min_level": 12,
+			"weight": 1,
+			"length": 40,
+			"events": [
+				{
+					"d": 6,
+					"type": "enemies",
+					"enemy": "grunt",
+					"formation": "line",
+					"count": [
+						3,
+						5
+					],
+					"element": "$A"
+				},
+				{
+					"d": 20,
+					"type": "enemies",
+					"enemy": "ward",
+					"formation": "line",
+					"count": 6,
+					"spacing": 1.3,
+					"element": "$wall",
+					"hp": 1.2
+				}
+			],
+			"mirror": false,
+			"blocking": true
+		}
+	]
+}

@@ -11,6 +11,8 @@ var projectiles := 1
 var element := "none"
 ## ally id -> count
 var allies: Dictionary = {}
+## Multiplier on ally hp/damage (scales with level so summons stay relevant).
+var ally_power := 1.0
 
 
 static func from_class(def: Dictionary) -> HeroStats:
@@ -33,6 +35,7 @@ func copy() -> HeroStats:
 	s.projectiles = projectiles
 	s.element = element
 	s.allies = allies.duplicate()
+	s.ally_power = ally_power
 	return s
 
 
@@ -53,7 +56,8 @@ func apply_gate(gate: Dictionary, limits: Dictionary) -> void:
 
 
 ## Effect = { stat, op ("add" | "mul"), value }. Stats: damage, fire_rate, projectiles, hp (heal),
-## max_hp, hp_pct (percent of max HP, curses use negatives), allies_pct (percent of every ally group).
+## max_hp, hp_pct (percent of max HP, curses use negatives), allies_pct (percent of every ally group),
+## summon (adds `value` allies of type `ally`).
 func apply_effect(effect: Dictionary, limits: Dictionary) -> void:
 	var op := String(effect.get("op", "add"))
 	var value := float(effect.get("value", 0))
@@ -73,6 +77,8 @@ func apply_effect(effect: Dictionary, limits: Dictionary) -> void:
 		"hp_pct":
 			var floor_hp := float(limits.get("min_hp_after_curse", 1.0))
 			hp = clampf(hp + max_hp * value / 100.0, floor_hp, max_hp)
+		"summon":
+			add_allies(String(effect.get("ally", "skeleton")), int(value), int(limits.get("max_allies", 12)))
 		"allies_pct":
 			for id: String in allies.keys():
 				allies[id] = maxi(0, int(floor(int(allies[id]) * (1.0 + value / 100.0))))
