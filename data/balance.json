@@ -1,0 +1,64 @@
+{
+	"_doc": "Every tunable number lives here. Units: meters, seconds, per-second rates. Keys starting with _ are comments.",
+	"track": {
+		"width": 8.0,
+		"hero_margin": 0.55
+	},
+	"hero": {
+		"run_speed": 8.0,
+		"radius": 0.45,
+		"steer_sensitivity": 1.25,
+		"steer_smoothing": 16.0,
+		"keyboard_steer_speed": 11.0,
+		"lean_degrees": 16.0,
+		"hurt_fx_cooldown": 0.12
+	},
+	"combat": {
+		"projectile_speed": 34.0,
+		"projectile_range": 30.0,
+		"projectile_radius": 0.25,
+		"projectile_spacing": 0.3,
+		"projectile_fan_degrees": 3.5,
+		"aim_assist_degrees": 12.0,
+		"max_projectiles_per_volley": 9,
+		"max_fire_rate": 12.0,
+		"min_fire_rate": 0.75,
+		"min_damage": 1.0,
+		"max_live_projectiles": 400
+	},
+	"enemy": {
+		"aggro_range": 24.0,
+		"lateral_chase": 0.35,
+		"despawn_behind": 4.0,
+		"max_alive": 70
+	},
+	"gates": {
+		"panel_height": 3.0,
+		"fade_time": 0.4
+	},
+	"feel": {
+		"camera_fov": 46.0,
+		"camera_height": 13.0,
+		"camera_back": 6.0,
+		"camera_look_ahead": 8.0,
+		"camera_follow_x": 0.55,
+		"shake_max_offset": 0.5,
+		"shake_max_roll_degrees": 2.5,
+		"shake_decay": 2.4,
+		"shake_hero_hit": 0.5,
+		"shake_kill": 0.07,
+		"shake_gate": 0.18,
+		"hit_stop_hero_hit": 0.06,
+		"hit_flash_time": 0.07,
+		"damage_number_time": 0.65,
+		"damage_number_rise": 1.6,
+		"damage_number_interval": 0.15,
+		"vibrate_ms_hit": 35,
+		"death_slowmo_scale": 0.3,
+		"death_slowmo_time": 0.8
+	},
+	"economy": {
+		"_doc": "Per-kill coins are defined per enemy in enemies.json; this scales them.",
+		"coin_multiplier": 1.0
+	}
+}

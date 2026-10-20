@@ -1,0 +1,14 @@
+{
+	"_doc": "Enemy archetypes. hp/damage are level-1 values; the difficulty curve scales them.",
+	"grunt": {
+		"name": "Goblin",
+		"model": "goblin",
+		"color": "#6BBF59",
+		"hp": 12,
+		"speed": 2.2,
+		"contact_damage": 10,
+		"radius": 0.5,
+		"scale": 1.0,
+		"coins": 1
+	}
+}

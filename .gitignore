@@ -23,3 +23,13 @@ mono_crash.*.json
 *.exe
 # Uncomment if your project does not version PCK files as runtime dependencies.
 # *.pck
+
+# Project-specific
+/build/
+/exports/
+/android/build/
+/reports/
+*.keystore
+*.jks
+*.aab
+*.apk

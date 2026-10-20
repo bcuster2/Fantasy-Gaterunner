@@ -1,0 +1,40 @@
+{
+	"_doc": "Hand-made Milestone 1 test level. Same event schema the generator will emit. d = distance from start in meters.",
+	"id": "test_level",
+	"name": "Proving Grounds",
+	"length": 430,
+	"events": [
+		{ "d": 30,  "type": "enemies", "enemy": "grunt", "formation": "line", "count": 3 },
+		{ "d": 50,  "type": "gates", "gates": [
+			{ "stat": "damage", "op": "add", "value": 3 },
+			{ "stat": "projectiles", "op": "add", "value": 1 }
+		] },
+		{ "d": 75,  "type": "enemies", "enemy": "grunt", "formation": "block", "rows": 2, "cols": 3 },
+		{ "d": 100, "type": "gates", "gates": [
+			{ "stat": "fire_rate", "op": "mul", "value": 1.5 },
+			{ "stat": "damage", "op": "add", "value": -2 }
+		] },
+		{ "d": 122, "type": "enemies", "enemy": "grunt", "formation": "wedge", "rows": 3 },
+		{ "d": 140, "type": "enemies", "enemy": "grunt", "formation": "column", "count": 4, "x": -2.5 },
+		{ "d": 146, "type": "enemies", "enemy": "grunt", "formation": "column", "count": 4, "x": 2.5 },
+		{ "d": 170, "type": "gates", "gates": [
+			{ "stat": "projectiles", "op": "add", "value": 1 },
+			{ "stat": "damage", "op": "mul", "value": 2 },
+			{ "stat": "fire_rate", "op": "add", "value": -1 }
+		] },
+		{ "d": 200, "type": "enemies", "enemy": "grunt", "formation": "block", "rows": 3, "cols": 4, "hp_mult": 1.5 },
+		{ "d": 232, "type": "enemies", "enemy": "grunt", "formation": "column", "count": 5, "x": 2.5, "hp_mult": 1.5 },
+		{ "d": 240, "type": "enemies", "enemy": "grunt", "formation": "column", "count": 5, "x": -2.5, "hp_mult": 1.5 },
+		{ "d": 268, "type": "gates", "gates": [
+			{ "stat": "fire_rate", "op": "mul", "value": 2 },
+			{ "stat": "damage", "op": "add", "value": 5 }
+		] },
+		{ "d": 295, "type": "enemies", "enemy": "grunt", "formation": "block", "rows": 4, "cols": 5, "hp_mult": 2.0 },
+		{ "d": 325, "type": "gates", "gates": [
+			{ "stat": "projectiles", "op": "add", "value": -1 },
+			{ "stat": "projectiles", "op": "add", "value": 2 }
+		] },
+		{ "d": 350, "type": "enemies", "enemy": "grunt", "formation": "wedge", "rows": 4, "hp_mult": 2.5 },
+		{ "d": 385, "type": "enemies", "enemy": "grunt", "formation": "block", "rows": 4, "cols": 6, "hp_mult": 3.0, "spacing": 1.15 }
+	]
+}

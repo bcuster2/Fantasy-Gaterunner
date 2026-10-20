@@ -1,0 +1,12 @@
+{
+	"_doc": "Hero classes. v1 ships one; add mage/ranger/knight here.",
+	"battlemage": {
+		"name": "Battlemage",
+		"model": "wizard",
+		"color": "#3F6FD8",
+		"max_hp": 100,
+		"damage": 5,
+		"fire_rate": 3.0,
+		"projectiles": 1
+	}
+}
