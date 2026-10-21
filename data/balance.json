@@ -29,8 +29,8 @@
 		"resist_multiplier": 0.5,
 		"max_allies": 12,
 		"min_hp_after_curse": 1.0,
-		"low_hp_danger": 30.0,
-		"casual_best_chance": 0.65
+		"casual_best_chance": 0.65,
+		"low_hp_danger_frac": 0.3
 	},
 	"enemy": {
 		"aggro_range": 24.0,
@@ -83,7 +83,7 @@
 		"_doc": "Difficulty as functions of level N: value = base * (1 + linear * (N-1)^exponent), clamped to cap (0 = no cap). Tune here, then run the simulator to see the effect across levels 1-500.",
 		"enemy_hp": {
 			"base": 1.2,
-			"linear": 0.035,
+			"linear": 0.031,
 			"exponent": 1.12,
 			"cap": 0
 		},
@@ -131,6 +131,13 @@
 			"linear": 0.25,
 			"exponent": 0.6,
 			"cap": 18.0
+		},
+		"modifier_chance": {
+			"base": 0.3,
+			"linear": 0.012,
+			"exponent": 0.8,
+			"cap": 0.75,
+			"_doc": "Chance a level rolls a modifier (after modifiers.start_level)."
 		}
 	},
 	"rhythm": {
@@ -165,16 +172,16 @@
 		"tune_up": 1.1,
 		"target_median_score": {
 			"normal": [
-				0.6,
-				0.92
+				0.7,
+				1.0
 			],
 			"spike": [
 				0.42,
 				0.75
 			],
 			"boss": [
-				0.62,
-				0.95
+				0.7,
+				1.0
 			],
 			"reward": [
 				0.95,
@@ -228,5 +235,28 @@
 			35,
 			80
 		]
+	},
+	"modifiers": {
+		"_doc": "Modifier rolls. A second modifier can appear from second_from_level.",
+		"start_level": 8,
+		"second_from_level": 40,
+		"second_chance": 0.3
+	},
+	"boss": {
+		"_doc": "Boss arena. The hero stops at the arena line; the boss stands distance meters ahead. hit_rate_* = share of telegraphed damage the estimator assumes each player type takes.",
+		"distance": 20.0,
+		"approach": 26.0,
+		"lanes": 4,
+		"stop_time": 0.6,
+		"ref_dps_share": 1.0,
+		"min_hp": 40.0,
+		"hit_rate_best": 0.2,
+		"hit_rate_median": 0.35,
+		"hit_rate_casual": 0.3,
+		"adds_dps_share": 0.15,
+		"hit_stop": 0.035,
+		"hit_stop_cooldown": 0.25,
+		"phase_hit_stop": 0.18,
+		"death_hit_stop": 0.25
 	}
 }

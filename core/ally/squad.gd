@@ -5,6 +5,8 @@ extends Node3D
 
 signal melee_hit(ally: Ally, enemy: Enemy)
 signal ranged_shot(ally: Ally, origin: Vector3)
+## Melee allies can't reach the boss's dais, so in the arena they hurl attacks at it instead.
+signal melee_boss(ally: Ally)
 
 var allies: Array[Ally] = []
 
@@ -60,7 +62,8 @@ func set_element_tint(color: Color) -> void:
 		a.set_element_tint(color)
 
 
-func tick(delta: float, hero_pos: Vector3, enemies: Array[Enemy]) -> void:
+func tick(delta: float, hero_pos: Vector3, enemies: Array[Enemy], boss: Boss = null) -> void:
+	var boss_on := boss != null and boss.fighting
 	for a in allies:
 		if not a.active:
 			continue
@@ -68,7 +71,7 @@ func tick(delta: float, hero_pos: Vector3, enemies: Array[Enemy]) -> void:
 		if not a.attack_ready():
 			continue
 		if a.kind == "ranged":
-			if _any_enemy_ahead(a, enemies):
+			if _any_enemy_ahead(a, enemies) or boss_on:
 				a.on_attacked()
 				ranged_shot.emit(a, a.global_position + Vector3(0, 1.0, -0.3))
 		else:
@@ -76,6 +79,9 @@ func tick(delta: float, hero_pos: Vector3, enemies: Array[Enemy]) -> void:
 			if target:
 				a.on_attacked()
 				melee_hit.emit(a, target)
+			elif boss_on:
+				a.on_attacked()
+				melee_boss.emit(a)
 
 
 ## Removes dead allies (after Run has updated stats) and closes the formation.

@@ -5,6 +5,7 @@ extends MultiMeshInstance3D
 ## live slot into the hole. Each projectile carries its element and color.
 
 signal hit(enemy: Enemy, damage: float, at: Vector3, element: String)
+signal boss_hit(damage: float, at: Vector3, element: String)
 
 ## Rotates the Y-aligned capsule mesh onto -Z so Basis.looking_at() points it along travel.
 const MESH_ALIGN := Basis(Vector3.RIGHT, -PI * 0.5)
@@ -64,7 +65,9 @@ func spawn(origin: Vector3, direction: Vector3, damage: float, element: String, 
 	_count += 1
 
 
-func tick(delta: float, enemies: Array[Enemy]) -> void:
+## boss: hit only while it is fighting; before that shots pass through (no early chip damage).
+func tick(delta: float, enemies: Array[Enemy], boss: Boss = null) -> void:
+	var boss_on := boss != null and boss.fighting
 	var step := _speed * delta
 	var i := 0
 	while i < _count:
@@ -82,6 +85,11 @@ func tick(delta: float, enemies: Array[Enemy]) -> void:
 					consumed = true
 					hit.emit(e, _dmg[i], Vector3(p.x, e.hit_height, p.z), _element[i])
 					break
+			if not consumed and boss_on:
+				var br := _radius + boss.radius
+				if absf(p.x - boss.position.x) < br and absf(p.z - boss.position.z) < br:
+					consumed = true
+					boss_hit.emit(_dmg[i], Vector3(p.x, boss.hit_height, p.z), _element[i])
 		if consumed:
 			_remove(i)
 			continue

@@ -56,7 +56,7 @@ static func power(stats: HeroStats, mix: Dictionary, elements: Dictionary, allie
 	var dps := (stats.dps() + ally_dps(stats, allies_db)) * mult
 	var toughness := stats.hp + ally_hp(stats, allies_db) * 0.5
 	# Allies soak hits, but the run ends when the hero dies: very low hero HP is near-fatal.
-	var danger := smoothstep(0.0, float(limits.get("low_hp_danger", 30.0)), stats.hp)
+	var danger := smoothstep(0.0, float(limits.get("low_hp_danger_frac", 0.3)) * stats.max_hp, stats.hp)
 	return dps * sqrt(maxf(toughness, 1.0) / 100.0) * danger
 
 

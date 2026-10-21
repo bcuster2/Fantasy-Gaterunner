@@ -57,7 +57,32 @@ level plays differently. Pacing templates only decide what you fight between gat
    or 12% on spike/boss levels). Checking only final HP missed runs that recover through max-HP gates.
    Otherwise enemies are scaled down, and crowds are thinned after the second round.
 
-## Pass 2b: final enemy wave (current)
+## Pass 3: bosses, modifiers, zones (Milestone 5, current)
+
+Every level now ends in a boss fight (mini every level, major every 10th), and modifiers roll from level 8.
+
+- **Boss sizing:** HP = geometric mean of best- and median-path end DPS vs. the boss element × `hp_seconds`
+  (mini 8-10 s, major 18-20 s). Difficulty targeting and repairs scale the boss with the rest of the level.
+- **Boss model in the estimator:** fight length = HP / DPS (adds cost 15% DPS); damage = telegraphed hits ×
+  hit rate (best 20%, median 35%, casual 30%). Dying to the boss scores 0.85 + 0.15 × the fraction of the
+  fight survived, so targeting can tell "died at the boss" from "finished".
+- **Fixes found by the simulator:** the low-HP danger check is now relative to max HP (30%); shrinking max
+  HP keeps the HP fraction instead of subtracting; cursed-only levels get two HP-friendly curses (Iron
+  Will, Bone Tithe).
+- `target_median_score` normal and boss `[0.70, 1.00]`; `enemy_hp.linear` 0.031.
+
+| Kind | Levels | Mean casual win | Std dev |
+|---|---|---|---|
+| normal | 344 | 83% | 0.17 |
+| spike | 49 | 68% | 0.23 |
+| boss (incl. major boss) | 50 | 72% | 0.22 |
+| reward | 57 | 93% | 0.12 |
+
+No BROKEN levels (best path always wins). **Calibration:** 54/54 sampled levels (1-500, including
+cursed-only level 42) won live with the autopilot dodging telegraphs; the estimator agreed on every outcome
+and stays conservative (−12.6% HP). Generation: ~6.6 ms average, max ~15-19 ms (boss sizing adds runs).
+
+## Pass 2b: final enemy wave
 
 Each level now ends with a climax-tier wave after the pre-boss gate (`generator.cadence.finale_length`).
 Fairness rule 4: every level ends with an enemy wave. Calibration found two estimator gaps, now fixed:

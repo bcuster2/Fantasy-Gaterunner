@@ -30,6 +30,10 @@ static func run(plan: Dictionary, start: HeroStats, policy: String, db: Dictiona
 	var choices: Array = []
 	## Lowest HP fraction reached during the run (the closest call), not just the final value.
 	var min_hp_frac := s.hp / maxf(s.max_hp, 1.0)
+	# Modifiers that change how well the hero lands shots (fog).
+	var aim_mult := 1.0
+	for mod: String in plan.get("modifiers", []):
+		aim_mult *= float(db.get("modifiers", {}).get(mod, {}).get("estimator_aim", 1.0))
 	var i := 0
 	while i < events.size():
 		var event: Dictionary = events[i]
@@ -44,6 +48,17 @@ static func run(plan: Dictionary, start: HeroStats, policy: String, db: Dictiona
 					trace.append("%5dm gate -> %s  (dmg %.1f rate %.1f shots %d %s allies %s)" % [int(event["d"]), gates[pick], s.damage, s.fire_rate, s.projectiles, s.element, s.allies])
 			i += 1
 			continue
+		if String(event.get("type", "")) == "boss":
+			var hp_boss := s.hp
+			var boss_result := _engage_boss(event, s, policy, db, balance, aim_mult)
+			coins += float(boss_result["coins"]) * coin_mult
+			min_hp_frac = minf(min_hp_frac, s.hp / maxf(s.max_hp, 1.0))
+			if trace is Array:
+				trace.append("%5dm BOSS %s/%s hp %d, fight %.1fs  hp %.0f -> %.0f" % [int(event["d"]), event["boss"], event["element"], int(event["hp"]), float(boss_result["seconds"]), hp_boss, s.hp])
+			if s.hp <= 0.0:
+				return {"survived": false, "distance": float(event["d"]), "hp_frac": 0.0, "min_hp_frac": 0.0, "kills": kills, "units": units, "coins": coins, "choices": choices, "stats": s, "boss_seconds": boss_result["seconds"], "boss_frac": boss_result["survived_frac"]}
+			i += 1
+			continue
 		if String(event.get("type", "")) != "enemies":
 			i += 1
 			continue
@@ -53,7 +68,7 @@ static func run(plan: Dictionary, start: HeroStats, policy: String, db: Dictiona
 			group.append(events[j])
 			j += 1
 		var hp_before := s.hp
-		var result := _engage(group, s, policy, db, balance)
+		var result := _engage(group, s, policy, db, balance, aim_mult)
 		if trace is Array:
 			var names: PackedStringArray = []
 			for g: Dictionary in group:
@@ -119,7 +134,58 @@ static func _choose(gates: Array, s: HeroStats, policy: String, mix: Dictionary,
 	return best
 
 
-static func _engage(group: Array, s: HeroStats, policy: String, db: Dictionary, balance: Dictionary) -> Dictionary:
+## Sustained damage output of a build: hero volleys (with multishot overlap and aim) plus allies.
+static func effective_dps(s: HeroStats, db: Dictionary, balance: Dictionary, aim_mult := 1.0) -> float:
+	var est_cfg: Dictionary = balance.get("estimator", {})
+	var volley := pow(float(s.projectiles), float(est_cfg.get("multishot_exponent", 1.0)))
+	var dps := s.damage * s.fire_rate * volley * float(est_cfg.get("hero_aim", 0.7)) * aim_mult
+	for id: String in s.allies:
+		var def: Dictionary = db["allies"].get(id, {})
+		var ally := int(s.allies[id]) * float(def.get("damage", 0)) * float(def.get("attack_rate", 0)) * s.ally_power
+		dps += ally * (0.8 if String(def.get("kind", "melee")) == "ranged" else 0.5)
+	return dps
+
+
+## Boss fight model: fight length = boss HP / element-adjusted DPS (adds eat a share of DPS);
+## the boss attacks every phase interval and the player eats hit_rate of the telegraphed damage.
+static func _engage_boss(event: Dictionary, s: HeroStats, policy: String, db: Dictionary, balance: Dictionary, aim_mult: float) -> Dictionary:
+	var def: Dictionary = db.get("bosses", {}).get(String(event.get("boss", "")), {})
+	var cfg: Dictionary = balance.get("boss", {})
+	var mult := CombatMath.element_multiplier(s.element, String(event.get("element", "none")), db["elements"], balance.get("combat", {}))
+	var phases := Boss.active_phases(def, int(event.get("level", 1)), bool(event.get("enrage", false)))
+	var has_adds := false
+	var interval_sum := 0.0
+	var damage_sum := 0.0
+	var attack_count := 0
+	for phase: Dictionary in phases:
+		interval_sum += float(phase.get("interval", 2.4))
+		for attack: Dictionary in phase.get("attacks", []):
+			attack_count += 1
+			match String(attack.get("type", "")):
+				"summon":
+					has_adds = true
+					damage_sum += 0.1
+				"volley":
+					damage_sum += float(attack.get("damage", 0.05)) * int(attack.get("shots", 3)) * 0.5
+				_:
+					damage_sum += float(attack.get("damage", 0.15))
+	var interval := interval_sum / maxf(phases.size(), 1)
+	if bool(event.get("enrage", false)):
+		interval *= float(db.get("modifiers", {}).get("boss_enrage", {}).get("interval", 0.75))
+	var dps := effective_dps(s, db, balance, aim_mult) * maxf(mult, 0.0)
+	if has_adds:
+		dps *= 1.0 - float(cfg.get("adds_dps_share", 0.15))
+	var seconds := float(event.get("hp", 100.0)) / maxf(dps, 0.01)
+	var hit_rate := float(cfg.get("hit_rate_" + ("casual" if policy in ["casual", "random"] else ("best" if policy == "best" else "median")), 0.3))
+	var per_attack := damage_sum / maxf(attack_count, 1) * float(event.get("damage_unit", 100.0))
+	var taken_per_second := per_attack * hit_rate / maxf(interval, 0.1)
+	# How much of the fight the hero lasts (1.0 = the whole fight).
+	var survived_frac := clampf(s.hp / maxf(taken_per_second * seconds, 0.001), 0.0, 1.0)
+	s.hp -= taken_per_second * seconds
+	return {"seconds": seconds, "survived_frac": survived_frac, "coins": float(def.get("coins", 10)) if s.hp > 0.0 else 0.0}
+
+
+static func _engage(group: Array, s: HeroStats, policy: String, db: Dictionary, balance: Dictionary, aim_mult := 1.0) -> Dictionary:
 	var limits: Dictionary = balance.get("combat", {})
 	var speed := float(balance.get("hero", {}).get("run_speed", 8.0))
 	var reach := float(limits.get("projectile_range", 30.0))
@@ -131,7 +197,7 @@ static func _engage(group: Array, s: HeroStats, policy: String, db: Dictionary, 
 	# diminishing returns: projectiles^multishot_exponent.
 	var est_cfg: Dictionary = balance.get("estimator", {})
 	var volley := pow(float(s.projectiles), float(est_cfg.get("multishot_exponent", 1.0)))
-	var hero_dps := s.damage * s.fire_rate * volley * float(est_cfg.get("hero_aim", 0.7))
+	var hero_dps := s.damage * s.fire_rate * volley * float(est_cfg.get("hero_aim", 0.7)) * aim_mult
 	var ranged_dps := 0.0
 	var melee_dps := 0.0
 	var front_allies := 0

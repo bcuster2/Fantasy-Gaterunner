@@ -73,7 +73,10 @@ func apply_effect(effect: Dictionary, limits: Dictionary) -> void:
 		"max_hp":
 			var old_max := max_hp
 			max_hp = maxf(1.0, _apply(max_hp, op, value))
-			hp = clampf(hp + (max_hp - old_max), 1.0, max_hp)
+			if max_hp >= old_max:
+				hp = clampf(hp + (max_hp - old_max), 1.0, max_hp) # growth heals by the amount gained
+			else:
+				hp = clampf(hp * max_hp / old_max, 1.0, max_hp) # shrinking keeps the same HP fraction
 		"hp_pct":
 			var floor_hp := float(limits.get("min_hp_after_curse", 1.0))
 			hp = clampf(hp + max_hp * value / 100.0, floor_hp, max_hp)

@@ -1,0 +1,84 @@
+{
+	"_doc": "Zone themes, cycling every 10 levels in this order. After one full cycle the zones come back remixed: colors hue-shifted by remix_hue_step per cycle and alt_props swapped in on odd cycles. major_boss = the boss for every 10th level in that zone.",
+	"order": [
+		"forest",
+		"crypt",
+		"volcano"
+	],
+	"remix_hue_step": 0.13,
+	"forest": {
+		"name": "Whispering Forest",
+		"major_boss": "troll_king",
+		"ground_a": "#8F785C",
+		"ground_b": "#806B52",
+		"edge": "#EDD18C",
+		"grass": "#5E9444",
+		"curb": "#9C978C",
+		"sky": "#9DCBEA",
+		"fog": "#A9CFEA",
+		"fog_density": 0.008,
+		"ambient": "#C4D3EA",
+		"sun": "#FFF2DC",
+		"sun_energy": 1.15,
+		"props": [
+			"pines",
+			"bushes"
+		],
+		"alt_props": [
+			"pines",
+			"rocks"
+		],
+		"prop_color_a": "#2F6B3A",
+		"prop_color_b": "#4E9A42"
+	},
+	"crypt": {
+		"name": "Forsaken Crypt",
+		"major_boss": "lich",
+		"ground_a": "#5E5A66",
+		"ground_b": "#55515D",
+		"edge": "#B9A8E0",
+		"grass": "#3B4A44",
+		"curb": "#6F6A78",
+		"sky": "#4A4560",
+		"fog": "#5D5878",
+		"fog_density": 0.014,
+		"ambient": "#9A94C0",
+		"sun": "#C9D2FF",
+		"sun_energy": 0.9,
+		"props": [
+			"dead_trees",
+			"tombstones"
+		],
+		"alt_props": [
+			"tombstones",
+			"crystals"
+		],
+		"prop_color_a": "#3E3546",
+		"prop_color_b": "#6B6378"
+	},
+	"volcano": {
+		"name": "Ember Peaks",
+		"major_boss": "dragon",
+		"ground_a": "#4A3A36",
+		"ground_b": "#40322E",
+		"edge": "#FF8A3D",
+		"grass": "#2B2220",
+		"curb": "#5A4842",
+		"sky": "#6B3428",
+		"fog": "#8A4A34",
+		"fog_density": 0.012,
+		"ambient": "#E0A080",
+		"sun": "#FFD0A0",
+		"sun_energy": 1.1,
+		"props": [
+			"rocks",
+			"lava_spires"
+		],
+		"alt_props": [
+			"crystals",
+			"lava_spires"
+		],
+		"prop_color_a": "#3A2E2A",
+		"prop_color_b": "#5C4038"
+	}
+}

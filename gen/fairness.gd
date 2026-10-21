@@ -12,11 +12,17 @@ extends RefCounted
 const SAFE := ["good", "element", "summon"]
 
 
-static func has_safe_option(gates: Array) -> bool:
+## With the cursed_only modifier every gate is a curse by design, so curses count as safe there.
+static func has_safe_option(gates: Array, curses_safe := false) -> bool:
 	for gate: Dictionary in gates:
-		if GateInfo.category(gate) in SAFE:
+		var category := GateInfo.category(gate)
+		if category in SAFE or (curses_safe and category == "curse"):
 			return true
 	return false
+
+
+static func _curses_safe(ctx: Dictionary) -> bool:
+	return (ctx.get("modifiers", []) as Array).has("cursed_only")
 
 
 static func offers_element(gates: Array, element: String) -> bool:
@@ -32,7 +38,7 @@ static func repair_gates(plan: Dictionary, ctx: Dictionary, rng: RandomNumberGen
 		if String(event.get("type", "")) != "gates":
 			continue
 		var gates: Array = event["gates"]
-		if has_safe_option(gates):
+		if has_safe_option(gates, _curses_safe(ctx)):
 			continue
 		for k in gates.size():
 			if GateInfo.category(gates[k]) in ["bad", "curse"]:
@@ -123,13 +129,15 @@ static func shrink_event(event: Dictionary) -> bool:
 static func validate(plan: Dictionary, ctx: Dictionary, enemies_db: Dictionary, window: float, cap: float, lookback: float) -> Array[String]:
 	var problems: Array[String] = []
 	var events: Array = plan["events"]
-	if events.is_empty() or String(events[-1].get("type", "")) != "enemies":
+	# The boss (if any) comes last; the last thing before the arena must be an enemy wave.
+	var ending := events.filter(func(e: Dictionary) -> bool: return String(e.get("type", "")) != "boss")
+	if ending.is_empty() or String(ending[-1].get("type", "")) != "enemies":
 		problems.append("level does not end with an enemy wave")
 	var last_gates: Dictionary = {}
 	for event: Dictionary in events:
 		match String(event.get("type", "")):
 			"gates":
-				if not has_safe_option(event["gates"]):
+				if not has_safe_option(event["gates"], _curses_safe(ctx)):
 					problems.append("unsafe gate set at %dm" % int(event["d"]))
 				last_gates = event
 			"enemies":

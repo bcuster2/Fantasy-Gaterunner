@@ -4,7 +4,7 @@ A portrait, one-thumb fantasy gate runner for Android (iOS-ready), built in **Go
 The hero auto-runs, you drag to steer, gates rewrite your build, and every level ends in a boss.
 Levels are procedurally generated from data. Level N is the same for every player.
 
-> Status: **Milestone 4: simulator and first balance pass** (levels 1-500 validated; see [docs/BALANCE.md](docs/BALANCE.md)). Milestones 1-3 are done.
+> Status: **Milestone 5: bosses, zones, modifiers** (mini boss every level, major boss every 10th, three cycling zone themes with remixes, five level modifiers). Milestones 1-4 are done.
 
 ## Running
 
@@ -14,7 +14,8 @@ Levels are procedurally generated from data. Level N is the same for every playe
 4. In dev builds a purple **DBG** button opens the dev menu: jump to any level, play any seed, god mode,
    grant coins, generator overlay, and stats for the current plan. Level 0 is the hand-made test level.
 
-Command-line flags go after `--`: `--level=N`, `--seed=S`, `--autopilot`, `--overlay`, `--god`, `--open-debug`.
+Command-line flags go after `--`: `--level=N`, `--seed=S`, `--start=M` (start M meters in; `-1` = just before
+the boss), `--autopilot`, `--overlay`, `--god`, `--open-debug`. The dev menu also has **SKIP TO BOSS**.
 
 ```bash
 # play generated level 57 headless with the bot; prints a [run] summary line
@@ -51,11 +52,12 @@ autoload/        Global singletons (registered in project.godot)
   audio_manager.gd AudioManager: pooled SFX players, mute buses (SFX synthesized until M8)
   level_generator.gd LevelGenerator: produces LevelPlans (M1: serves the test level)
 core/
-  run/             Run scene: owns world, pools, and the per-frame update order
+  run/             Run scene (world, pools, update order, boss arena flow), TrackBuilder, ZoneTheme
   hero/            Hero node + HeroStats (pure build state: stats, element, ally counts)
   enemy/           Pooled Enemy node (behaviors: walker, charger, ranged, weaver, static)
   ally/            Ally node + Squad (formation, pooling, attack decisions)
   gates/           GateSet (visual + crossing), GateInfo (text/colors/classification)
+  boss/            Boss (phases, attack choice), BossArena (lane telegraphs, waves, hit resolution)
   combat/          CombatMath (pure element/power rules), ProjectileSystem (friendly shots,
                    one MultiMesh), EnemyShots (hostile shots to dodge)
   fx/              CameraRig (trauma shake), DamageNumbers, BurstPool
@@ -77,6 +79,9 @@ data/              All content and tuning as JSON
   enemies.json     Enemy archetypes
   allies.json      Summonable allies
   elements.json    Elements: color, icon, weakness triangle, on-hit effect
+  bosses.json      Bosses: tier, model, element, fight length, phases and attacks
+  zones.json       Zone themes (colors, props, major boss) and remix settings
+  modifiers.json   Level modifiers (fog, elites, double gates, boss enrage, cursed-only)
   gates.json       Gate templates (good/bad/heal/strong/curse/summon) and pattern weights
   pacing.json      Pacing templates (ordered slot roles)
   segments/        Segment library; every JSON file here joins the pool
@@ -160,7 +165,7 @@ element-locked walls. Each element also adds an on-hit effect: fire burns, ice s
    - every gate set has a safe option (never two harmful gates as the only choice);
    - every element-locked wall's preceding gate set offers its weakness (or one is inserted);
    - enemy density per 25 m window stays under the `max_density` curve;
-   - every level ends with an enemy wave.
+   - every level ends with an enemy wave before the boss arena.
 8. **In-level ramp.** Early segments use part of the level's density and HP (every run starts weak).
 9. **Difficulty targeting.** The estimator's median-gate-path score is steered into a band per level kind
    (`generator.target_median_score`, raised for the first 15 levels) by nudging enemy HP/damage.
@@ -168,7 +173,7 @@ element-locked walls. Each element also adds an on-hit effect: fire burns, ice s
    must keep its lowest HP point above a margin. Otherwise enemies are scaled down, and crowds are thinned too from
    the third repair on. The plan records `debug.difficulty_scale`.
 
-The plan also carries `zone`, `boss`, and `modifiers` for Milestone 5.
+The plan also carries `zone`/`zone_cycle`, `modifiers`, and a final `boss` event (see below).
 Generation takes about 2 ms per level (budget 50 ms).
 
 ### Adding a segment
@@ -185,6 +190,53 @@ Segments hold enemies only; gates come from the cadence. A segment's `length` mu
 (intro: 34 m, between gates: 40 m, +4 m tolerance); events past the stretch are dropped. Set
 `"mirror": false` for asymmetric segments that must not flip. Run `tools/gen_check.tscn` afterwards
 to confirm fairness and determinism.
+
+## Bosses
+
+Every level ends in a boss arena after the final wave. The hero stops at the arena line, the boss
+fights from a dais 20 m ahead, and the level is won when the boss falls.
+
+- **Scheduling:** a weighted *mini* boss ends every level; every 10th level gets the zone's *major* boss
+  (forest: Troll King, crypt: Lich, volcano: Dragon).
+- **Attacks** (`data/bosses.json`), on 4 lanes:
+  - `slam`: telegraphed lanes, never all of them;
+  - `sweep`: lanes hit one after another;
+  - `wave`: a wall rolls toward you with a green gap;
+  - `volley`: dodgeable shots;
+  - `summon`: adds.
+- **Phases:** each phase starts below its HP fraction. Phases with `min_level` only appear at higher
+  levels; the `boss_enrage` modifier unlocks all of them and speeds attacks up.
+- **HP** is derived by the generator from the builds the level hands out: the geometric mean of the
+  best- and median-path DPS against the boss's element × `hp_seconds`. Good builds fight a bit under
+  `hp_seconds`, and a build that hits the boss's weakness wins much faster.
+- **Damage** is a fraction of the expected hero max HP for the level.
+
+### Adding a boss
+
+Add an entry to `data/bosses.json` (`tier`, `model`, `element` or `$A`, `hp_seconds`, `phases` with
+attacks). Minis join the weighted pool automatically. For a major boss, set it as a zone's
+`major_boss`. Models are code-built in `Placeholders.make_boss` (meshes named `Crystal*` glow in
+the boss's element).
+
+## Zones and modifiers
+
+- **Zones** cycle every 10 levels: forest → crypt → volcano. After a full cycle they return remixed:
+  all colors hue-shifted by `remix_hue_step` per cycle, with alternate props on odd cycles ("Whispering
+  Forest II"). Add a zone to `data/zones.json` and list it in `order`.
+- **Modifiers** unlock by level and are rolled per level (`balance.json -> modifiers`, `modifier_chance`
+  curve; a second one is possible from level 40). They're shown in the level banner and as chips on the HUD.
+
+| Modifier | Unlocks at | Effect |
+|---|---|---|
+| ELITES | 12 | Some foes ×1.8 HP, bigger, ×3 coins |
+| BOSS ENRAGE | 22 | Faster attacks, every phase |
+| DOUBLE GATES | 16 | Every gate effect doubled, good and bad |
+| FOG | 8 | Heavy fog |
+| CURSED | 30 | Every regular gate is a curse (fairness treats curses as safe there) |
+
+To add a modifier, put an entry in `data/modifiers.json`, then handle its id where it applies:
+`GateFactory` for gate changes, `LevelBuilder._instantiate` for enemies, `Run`/`Boss` for presentation
+and combat, and `Estimator` if it changes difficulty.
 
 ### Adding a gate or pacing template
 

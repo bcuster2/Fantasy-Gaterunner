@@ -19,6 +19,7 @@ var immune_unless_weak := false
 var knockback_resist := 0.0
 ## Level difficulty multiplier on contact and shot damage.
 var dmg_mult := 1.0
+var elite := false
 var def: Dictionary = {}
 ## Damage accumulated since the last floating number (numbers are throttled per enemy).
 var pending_damage := 0.0
@@ -63,11 +64,14 @@ func _init() -> void:
 	add_child(_icon)
 
 
-func spawn(id: String, enemy_def: Dictionary, hp_mult: float, pos: Vector3, element_id: String, damage_mult := 1.0) -> void:
+## elite_def: the "elite" modifier entry when this enemy is elite (bigger, gold, richer).
+func spawn(id: String, enemy_def: Dictionary, hp_mult: float, pos: Vector3, element_id: String, damage_mult := 1.0, elite_def: Dictionary = {}) -> void:
 	def = enemy_def
 	if id != enemy_id:
 		_rebuild(id)
-	var scale_f := float(def.get("scale", 1.0))
+	elite = not elite_def.is_empty()
+	var scale_f := float(def.get("scale", 1.0)) * (float(elite_def.get("scale", 1.25)) if elite else 1.0)
+	_body.scale = Vector3.ONE
 	max_hp = maxf(1.0, float(def.get("hp", 10)) * hp_mult)
 	hp = max_hp
 	behavior = String(def.get("behavior", "walker"))
@@ -75,7 +79,9 @@ func spawn(id: String, enemy_def: Dictionary, hp_mult: float, pos: Vector3, elem
 	dmg_mult = damage_mult
 	contact_damage = float(def.get("contact_damage", 10)) * dmg_mult
 	radius = float(def.get("radius", 0.5)) * scale_f
-	coins = int(def.get("coins", 1))
+	coins = int(def.get("coins", 1)) * (int(elite_def.get("coins", 3)) if elite else 1)
+	_model.scale = Vector3.ONE * scale_f
+	hit_height = 0.9 * scale_f + float(def.get("fly_height", 0.0))
 	color = Color(String(def.get("color", "#FFFFFF")))
 	immune_unless_weak = bool(def.get("immune_unless_weak", false))
 	knockback_resist = float(def.get("knockback_resist", 0.0))
@@ -97,6 +103,7 @@ func spawn(id: String, enemy_def: Dictionary, hp_mult: float, pos: Vector3, elem
 	_set_flash(false)
 	_set_element(element_id)
 	_label.position = Vector3(0, 1.55 * scale_f + 0.25, 0)
+	_label.modulate = Color("#FFD166") if elite else Color.WHITE
 	_icon.position = Vector3(0, 1.55 * scale_f + 0.8, 0)
 	_refresh_label()
 	active = true

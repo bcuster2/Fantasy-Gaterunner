@@ -11,6 +11,9 @@ static func make(pattern: String, ctx: Dictionary, rng: RandomNumberGenerator, r
 	var level := int(ctx["level"])
 	if required_element != "":
 		pattern = "element"
+	var mods: Array = ctx.get("modifiers", [])
+	if pattern == "any" and mods.has("cursed_only"):
+		pattern = "curse_set"
 	if pattern == "any":
 		pattern = String(GenUtil.pick_weighted(rng, _pattern_list(ctx), level).get("id", "stat"))
 	if pattern == "element" and not bool(ctx["element_unlocked"]):
@@ -39,7 +42,61 @@ static func make(pattern: String, ctx: Dictionary, rng: RandomNumberGenerator, r
 				var bad := GenUtil.pick_weighted(rng, _pool(ctx, "bad"), level)
 				if not bad.is_empty():
 					out[rng.randi_range(0, out.size() - 1)] = _template_gate(bad, ctx, rng)
+	if pattern == "curse_set":
+		out = _distinct_curses(ctx, rng, 3 if rng.randf() < 0.4 else 2)
+	if mods.has("double_gates"):
+		out = out.map(func(g: Dictionary) -> Dictionary: return doubled(g))
 	GenUtil.shuffle(rng, out)
+	return out
+
+
+## "Double gates" modifier: every effect twice as strong, boons and banes alike.
+static func doubled(gate: Dictionary) -> Dictionary:
+	var g := gate.duplicate(true)
+	match String(g.get("kind", "stat")):
+		"element":
+			return g
+		"summon":
+			g["count"] = int(g.get("count", 1)) * 2
+			return g
+		"curse":
+			var effects: Array = []
+			for effect: Dictionary in g.get("effects", []):
+				effects.append(_double_effect(effect))
+			g["effects"] = effects
+			return g
+	return _double_effect(g)
+
+
+static func _double_effect(effect: Dictionary) -> Dictionary:
+	var e := effect.duplicate()
+	var v := float(e.get("value", 0))
+	if String(e.get("op", "add")) == "mul":
+		e["value"] = snappedf(1.0 + (v - 1.0) * 2.0, 0.05) if v >= 1.0 else maxf(0.1, snappedf(1.0 - (1.0 - v) * 2.0, 0.05))
+	else:
+		match String(e.get("stat", "")):
+			"hp_pct":
+				e["value"] = maxf(-60.0, v * 2.0)
+			"allies_pct":
+				e["value"] = maxf(-90.0, v * 2.0)
+			_:
+				e["value"] = v * 2.0
+	return e
+
+
+## Two or three different curses (cursed_only modifier).
+static func _distinct_curses(ctx: Dictionary, rng: RandomNumberGenerator, count: int) -> Array:
+	var out: Array = []
+	var used: Array = []
+	for attempt in count * 4:
+		if out.size() >= count:
+			break
+		var gate := curse_gate(ctx, rng)
+		var id := String(gate.get("id", ""))
+		if used.has(id) and attempt < count * 3:
+			continue
+		used.append(id)
+		out.append(gate)
 	return out
 
 

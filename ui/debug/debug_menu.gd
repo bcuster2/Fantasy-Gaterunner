@@ -30,8 +30,8 @@ func setup(plan: Dictionary) -> void:
 	toggle.anchor_right = 1.0
 	toggle.offset_left = -150
 	toggle.offset_right = -32
-	toggle.offset_top = 345
-	toggle.offset_bottom = 415
+	toggle.offset_top = 440
+	toggle.offset_bottom = 510
 	toggle.pressed.connect(_toggle)
 	root.add_child(toggle)
 
@@ -96,6 +96,9 @@ func setup(plan: Dictionary) -> void:
 		GameState.coins += 1000
 		_refresh()))
 	misc_row.add_child(_button("TEST LEVEL", func() -> void: _play(0, -1)))
+	misc_row.add_child(_button("SKIP TO BOSS", func() -> void:
+		GameState.start_distance = -1.0
+		_play(int(_plan.get("level", 1)), GameState.seed_override)))
 	col.add_child(_button("CLOSE", _toggle))
 	_refresh()
 	if GameState.open_debug_menu:

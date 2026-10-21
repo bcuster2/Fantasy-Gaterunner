@@ -23,6 +23,14 @@ var _chip_values: Dictionary = {}
 var _flash: ColorRect
 var _hint: Label
 var _level_title: Label
+var _boss_panel: VBoxContainer
+var _boss_name: Label
+var _boss_icon: TextureRect
+var _boss_bar: ProgressBar
+var _modifier_row: HBoxContainer
+var _banner: VBoxContainer
+var _banner_title: Label
+var _banner_body: Label
 var _hint_time := 0.0
 var _hint_fading := false
 var _overlay: Control
@@ -49,6 +57,8 @@ func _ready() -> void:
 	_build_top_bar(root)
 	_build_stat_chips(root)
 	_build_hint(root)
+	_build_banner(root)
+	_build_modifier_row(root)
 	_build_overlay(root)
 
 
@@ -90,6 +100,54 @@ func set_stats(stats: HeroStats, changed_stat := "", good := true) -> void:
 		_punch(chip, 1.3)
 		chip.modulate = Color(0.5, 1.6, 0.6) if good else Color(1.8, 0.5, 0.5)
 		create_tween().tween_property(chip, "modulate", Color.WHITE, 0.5)
+
+
+## Big centered announcement (level start, boss intro, phase change).
+func show_banner(title: String, body := "", color := Color.WHITE, seconds := 2.2) -> void:
+	_banner_title.text = title
+	_banner_title.modulate = color
+	_banner_body.text = body
+	_banner_body.visible = not body.is_empty()
+	_banner.visible = true
+	_banner.modulate.a = 0.0
+	_banner.scale = Vector2.ONE
+	var tween := create_tween()
+	tween.tween_property(_banner, "modulate:a", 1.0, 0.2)
+	tween.tween_interval(seconds)
+	tween.tween_property(_banner, "modulate:a", 0.0, 0.5)
+	tween.tween_callback(_banner.hide)
+
+
+## Small chips naming the level's modifiers.
+func set_modifiers(names: Array) -> void:
+	for child in _modifier_row.get_children():
+		child.queue_free()
+	for name: String in names:
+		var chip := PanelContainer.new()
+		chip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		chip.add_theme_stylebox_override("panel", UiTheme.box(Color(0.45, 0.12, 0.5, 0.8), 18, 10))
+		var label := Label.new()
+		label.text = name
+		label.add_theme_font_size_override("font_size", 28)
+		chip.add_child(label)
+		_modifier_row.add_child(chip)
+
+
+func show_boss(boss_name: String, element: String, max_hp: float) -> void:
+	_boss_name.text = boss_name.to_upper()
+	_boss_icon.texture = Content.element_icon(Content.weakness_of(element)) if element != "none" else null
+	_boss_icon.visible = _boss_icon.texture != null
+	_boss_icon.get_parent().get_child(1).visible = _boss_icon.visible
+	_boss_bar.max_value = max_hp
+	_boss_bar.value = max_hp
+	_progress.visible = false
+	_boss_panel.visible = true
+	_punch(_boss_panel, 1.15)
+
+
+func set_boss_hp(hp: float, max_hp: float) -> void:
+	_boss_bar.max_value = max_hp
+	_boss_bar.value = hp
 
 
 func set_level_title(text: String) -> void:
@@ -202,6 +260,34 @@ func _build_top_bar(root: Control) -> void:
 	_progress = _make_bar(Color("#FFD166"), 20)
 	column.add_child(_progress)
 
+	_boss_panel = VBoxContainer.new()
+	_boss_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_boss_panel.visible = false
+	_boss_panel.add_theme_constant_override("separation", 6)
+	column.add_child(_boss_panel)
+	var boss_row := HBoxContainer.new()
+	boss_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	boss_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	boss_row.add_theme_constant_override("separation", 12)
+	_boss_panel.add_child(boss_row)
+	_boss_name = Label.new()
+	_boss_name.add_theme_font_size_override("font_size", 40)
+	_boss_name.modulate = Color("#FFB3A0")
+	boss_row.add_child(_boss_name)
+	var weak := Label.new()
+	weak.text = "weak to"
+	weak.add_theme_font_size_override("font_size", 28)
+	weak.modulate = UiTheme.MUTED
+	boss_row.add_child(weak)
+	_boss_icon = TextureRect.new()
+	_boss_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_boss_icon.custom_minimum_size = Vector2(48, 48)
+	_boss_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_boss_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	boss_row.add_child(_boss_icon)
+	_boss_bar = _make_bar(Color("#C0392B"), 34)
+	_boss_panel.add_child(_boss_bar)
+
 	var badges := HBoxContainer.new()
 	badges.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	badges.add_theme_constant_override("separation", 16)
@@ -234,6 +320,7 @@ func _build_top_bar(root: Control) -> void:
 	_ally_chip.add_child(_ally_label)
 	set_element("none")
 	set_allies(0, 12)
+
 
 
 func _build_stat_chips(root: Control) -> void:
@@ -270,6 +357,42 @@ func _build_stat_chips(root: Control) -> void:
 		column.add_child(value)
 		_chips[stat] = chip
 		_chip_values[stat] = value
+
+
+## Modifier chips sit just above the stat chips, out of the play area.
+func _build_modifier_row(root: Control) -> void:
+	_modifier_row = HBoxContainer.new()
+	_modifier_row.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_modifier_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	_modifier_row.add_theme_constant_override("separation", 10)
+	_modifier_row.anchor_left = 0.0
+	_modifier_row.anchor_right = 1.0
+	_modifier_row.anchor_top = 1.0
+	_modifier_row.anchor_bottom = 1.0
+	_modifier_row.offset_top = -330
+	_modifier_row.offset_bottom = -280
+	root.add_child(_modifier_row)
+
+
+func _build_banner(root: Control) -> void:
+	_banner = VBoxContainer.new()
+	_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_banner.anchor_left = 0.0
+	_banner.anchor_right = 1.0
+	_banner.anchor_top = 0.36
+	_banner.anchor_bottom = 0.36
+	_banner.alignment = BoxContainer.ALIGNMENT_CENTER
+	_banner.visible = false
+	root.add_child(_banner)
+	_banner_title = Label.new()
+	_banner_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner_title.add_theme_font_size_override("font_size", 92)
+	_banner.add_child(_banner_title)
+	_banner_body = Label.new()
+	_banner_body.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_banner_body.add_theme_font_size_override("font_size", 38)
+	_banner_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_banner.add_child(_banner_body)
 
 
 func _build_hint(root: Control) -> void:

@@ -16,7 +16,6 @@ const ROLE_FALLBACKS := {
 	"breather": ["intro"],
 	"finale": ["climax", "pressure"],
 }
-const ZONES := ["forest", "crypt", "volcano"]
 
 
 static func build(level: int, seed_value: int, db: Dictionary, balance: Dictionary) -> Dictionary:
@@ -35,6 +34,12 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 	# harder climax, never an unwinnable opening for a base-stat hero.
 	ctx["rhythm_mult"] = rhythm_mult
 	ctx["opening_weight"] = float(gen.get("upscale_opening_weight", 0.25))
+	# Modifiers, elites and the boss use their own seeded RNG so adding them never reshuffles layouts.
+	var mod_rng := RandomNumberGenerator.new()
+	mod_rng.seed = seed_value ^ 0x5BD1E995
+	ctx["mod_rng"] = mod_rng
+	ctx["modifiers"] = pick_modifiers(level, db, balance, mod_rng)
+	ctx["modifier_defs"] = db["modifiers"]
 
 	var template := GenUtil.pick_weighted(rng, _templates(db), level)
 	var cadence: Dictionary = gen.get("cadence", {})
@@ -106,7 +111,10 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 					depth = maxf(depth, offset.y)
 				last_enemy_d = maxf(last_enemy_d, float(e["d"]) + depth)
 		segments_debug.append({"id": String(finale.get("id", "")), "role": finale_role, "start": finale_start, "end": finale_start + finale_room})
-	var finish_d := maxf(finale_start + finale_room, last_enemy_d + float(cadence.get("finish_after_last_enemy", 14.0)))
+	# The boss arena starts where the final wave ends.
+	var arena_d := maxf(finale_start + finale_room, last_enemy_d + float(cadence.get("finish_after_last_enemy", 14.0)))
+	var zone_order: Array = db["zones"].get("order", ["forest"])
+	var zone_id := String(zone_order[((level - 1) / 10) % zone_order.size()])
 
 	var plan := {
 		"id": "level_%d" % level,
@@ -114,13 +122,13 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 		"seed": seed_value,
 		"kind": kind,
 		"template": String(template.get("id", "")),
-		"length": finish_d,
+		"length": arena_d,
 		"events": events,
 		"palette": ctx["palette"],
-		"zone": ZONES[((level - 1) / 10) % ZONES.size()],
-		"zone_cycle": (level - 1) / (10 * ZONES.size()),
-		"boss": {"kind": "major" if kind == "boss" else "mini"},
-		"modifiers": [],
+		"zone": zone_id,
+		"zone_cycle": (level - 1) / (10 * zone_order.size()),
+		"boss": {},
+		"modifiers": ctx["modifiers"],
 		"coin_mult": Curves.named(balance, "coin_multiplier", level) * (1.5 if kind == "reward" else 1.0),
 		"hero_power": float(ctx["power"]),
 		"hero_hp_power": float(ctx["hp_power"]),
@@ -137,12 +145,18 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 	}
 	_sort_events(plan)
 
+	# Boss: its HP comes from the build a median player leaves the level with, so fights last about
+	# hp_seconds whatever the level number.
+	var hero := expected_hero(level, db, balance)
+	var boss_event := make_boss_event(plan, level, kind, zone_id, ctx, hero, db, balance)
+	plan["events"].append(boss_event)
+	plan["boss"] = {"id": boss_event["boss"], "tier": boss_event["tier"], "element": boss_event["element"], "hp": boss_event["hp"]}
+
 	# Difficulty targeting + winnability. The curves set the baseline; the estimator then nudges enemy
 	# HP/damage so a median player's score lands inside the target band for this level kind (keeps the
 	# spike/reward rhythm readable and evens out segment luck). Score = distance fraction reached if
 	# the median path dies, else 1 + remaining HP fraction. Finally a hard guarantee: the best path
 	# must survive with a margin, scaling down and thinning crowds if needed.
-	var hero := expected_hero(level, db, balance)
 	var band: Array = (gen.get("target_median_score", {}).get(kind, [0.75, 1.15]) as Array).duplicate()
 	# Onboarding: the first levels aim higher, fading to the normal bands by onboarding_levels.
 	var onboarding := clampf(1.0 - float(level - 1) / maxf(1.0, float(gen.get("onboarding_levels", 15))), 0.0, 1.0)
@@ -197,12 +211,89 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 	return plan
 
 
+## Rolls this level's modifiers (unlocked by level; at most one until second_from_level).
+static func pick_modifiers(level: int, db: Dictionary, balance: Dictionary, rng: RandomNumberGenerator) -> Array:
+	var cfg: Dictionary = balance.get("modifiers", {})
+	if level < int(cfg.get("start_level", 8)):
+		return []
+	var pool: Array = []
+	var ids: Array = db["modifiers"].keys()
+	ids.sort()
+	for id: String in ids:
+		var def: Dictionary = (db["modifiers"][id] as Dictionary).duplicate()
+		def["id"] = id
+		pool.append(def)
+	var out: Array = []
+	var roll := rng.randf()
+	if roll < Curves.named(balance, "modifier_chance", level):
+		var first := GenUtil.pick_weighted(rng, pool, level)
+		if not first.is_empty():
+			out.append(String(first["id"]))
+			if level >= int(cfg.get("second_from_level", 40)) and rng.randf() < float(cfg.get("second_chance", 0.3)):
+				var rest := pool.filter(func(m: Dictionary) -> bool: return m["id"] != first["id"])
+				var second := GenUtil.pick_weighted(rng, rest, level)
+				if not second.is_empty():
+					out.append(String(second["id"]))
+	return out
+
+
+## Chooses the boss (major on boss levels, by zone; otherwise a weighted mini) and derives its HP
+## from the best-path end-of-level build.
+static func make_boss_event(plan: Dictionary, level: int, kind: String, zone_id: String, ctx: Dictionary, hero: HeroStats, db: Dictionary, balance: Dictionary) -> Dictionary:
+	var rng: RandomNumberGenerator = ctx["mod_rng"]
+	var bosses: Dictionary = db["bosses"]
+	var boss_id := ""
+	if kind == "boss":
+		boss_id = String(db["zones"].get(zone_id, {}).get("major_boss", ""))
+	if not bosses.has(boss_id):
+		var minis: Array = []
+		var ids: Array = bosses.keys()
+		ids.sort()
+		for id: String in ids:
+			if String(bosses[id].get("tier", "mini")) == "mini":
+				var entry: Dictionary = (bosses[id] as Dictionary).duplicate()
+				entry["id"] = id
+				minis.append(entry)
+		boss_id = String(GenUtil.pick_weighted(rng, minis, level).get("id", ids[0]))
+	var def: Dictionary = bosses[boss_id]
+	var element := String(def.get("element", "none"))
+	if element.begins_with("$"):
+		var palette: Array = ctx["palette"]
+		element = String(palette[0]) if not palette.is_empty() else "none"
+	var boss_cfg: Dictionary = balance.get("boss", {})
+	# Sized between the strong (best-path) and median builds (geometric mean of their DPS against the
+	# boss): good builds fight a bit under hp_seconds, weaker builds face a longer, riskier fight.
+	var ref_dps := 1.0
+	for policy: String in ["best", "median"]:
+		var end_stats: HeroStats = Estimator.run(plan, hero, policy, db, balance)["stats"]
+		var mult := CombatMath.element_multiplier(end_stats.element, element, db["elements"], balance.get("combat", {}))
+		ref_dps *= sqrt(maxf(1.0, Estimator.effective_dps(end_stats, db, balance) * maxf(mult, 0.5)))
+	ref_dps *= float(boss_cfg.get("ref_dps_share", 1.0))
+	var hp := maxf(float(boss_cfg.get("min_hp", 40.0)) * float(ctx["hp_mult"]), ref_dps * float(def.get("hp_seconds", 10.0)))
+	var mods: Array = ctx["modifiers"]
+	return {
+		"d": float(plan["length"]),
+		"type": "boss",
+		"boss": boss_id,
+		"tier": String(def.get("tier", "mini")),
+		"element": element,
+		"hp": roundf(hp),
+		"damage_unit": hero.max_hp,
+		"enrage": mods.has("boss_enrage"),
+		"ref_dps": ref_dps,
+		"level": level,
+	}
+
+
 ## Difficulty signal: distance fraction if the median gate path dies, else 1 + HP fraction left.
 static func median_score_of(plan: Dictionary, hero: HeroStats, db: Dictionary, balance: Dictionary) -> float:
 	var r := Estimator.run(plan, hero, "median", db, balance)
 	if bool(r["survived"]):
 		return 1.0 + float(r["hp_frac"])
-	return float(r["distance"]) / maxf(float(plan.get("length", 1.0)), 1.0)
+	if r.has("boss_frac"):
+		# Fell to the boss: the run itself counts 0.85, the fight the remaining 0.15.
+		return 0.85 + 0.15 * float(r["boss_frac"])
+	return float(r["distance"]) / maxf(float(plan.get("length", 1.0)), 1.0) * 0.85
 
 
 ## Generator context shared with GateFactory (and the simulator).
@@ -302,6 +393,11 @@ static func _instantiate(src: Dictionary, cursor: float, mirror: bool, swap: boo
 				e["wall"] = true
 			var rhythm := _opening_weighted(float(ctx.get("rhythm_mult", 1.0)), float(ctx.get("progress", 1.0)), float(ctx.get("opening_weight", 1.0)))
 			e["hp_mult"] = float(e.get("hp", 1.0)) * float(ctx.get("slot_hp_mult", ctx["hp_mult"])) * rhythm
+			if (ctx.get("modifiers", []) as Array).has("elite") and not e.has("wall"):
+				var elite: Dictionary = ctx["modifier_defs"].get("elite", {})
+				if (ctx["mod_rng"] as RandomNumberGenerator).randf() < float(elite.get("chance", 0.3)):
+					e["elite"] = true
+					e["hp_mult"] = float(e["hp_mult"]) * float(elite.get("hp", 1.8))
 			e["progress"] = snappedf(float(ctx.get("progress", 1.0)), 0.001)
 			e["dmg_mult"] = float(ctx["dmg_mult"]) * rhythm
 			e.erase("hp")
@@ -342,6 +438,13 @@ static func _opening_weighted(factor: float, progress: float, opening_weight: fl
 ## Scales enemy HP/damage; with opening_weight < 1 increases mostly hit the back half.
 static func _scale_enemies(plan: Dictionary, step: float, opening_weight := 1.0) -> void:
 	for event: Dictionary in plan["events"]:
+		if String(event.get("type", "")) == "boss":
+			# The boss is part of the level's difficulty: HP and hit strength scale with it.
+			event["hp"] = roundf(float(event["hp"]) * step)
+			event["damage_unit"] = float(event["damage_unit"]) * sqrt(step)
+			if plan.has("boss"):
+				plan["boss"]["hp"] = event["hp"]
+			continue
 		if String(event.get("type", "")) == "enemies":
 			var factor := _opening_weighted(step, float(event.get("progress", 1.0)), opening_weight)
 			event["hp_mult"] = float(event["hp_mult"]) * factor

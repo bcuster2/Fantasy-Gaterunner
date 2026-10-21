@@ -25,6 +25,10 @@ var _orb: MeshInstance3D
 var _meshes: Array[MeshInstance3D] = []
 var _hp_label: Label3D
 var _ring: MeshInstance3D
+## 1 = running, 0 = stopped (boss arena). Eases toward _run_target.
+var _run := 1.0
+var _run_target := 1.0
+var _stop_time := 0.6
 
 
 func setup(class_def: Dictionary) -> void:
@@ -67,6 +71,12 @@ func refresh_hp() -> void:
 	hp_changed.emit(stats.hp, stats.max_hp)
 
 
+## Stops (false) or resumes (true) the forward run with a short ease.
+func set_running(running: bool, ease_time := 0.6) -> void:
+	_run_target = 1.0 if running else 0.0
+	_stop_time = maxf(ease_time, 0.01)
+
+
 func steer_by(dx_world: float) -> void:
 	target_x = clampf(target_x + dx_world, -_half_width, _half_width)
 
@@ -84,12 +94,13 @@ func update_motion(delta: float) -> void:
 
 	var prev_x := position.x
 	position.x = lerpf(position.x, target_x, 1.0 - exp(-_smoothing * delta))
-	position.z -= _speed * delta
+	_run = move_toward(_run, _run_target, delta / _stop_time)
+	position.z -= _speed * _run * delta
 
 	# Lean into turns and bob while running.
 	var vx := (position.x - prev_x) / maxf(delta, 0.0001)
 	_model.rotation.z = lerpf(_model.rotation.z, clampf(-vx * 0.06, -_lean, _lean), 1.0 - exp(-12.0 * delta))
-	_anim_time += delta * 11.0
+	_anim_time += delta * lerpf(4.0, 11.0, _run)
 	_model.position.y = absf(sin(_anim_time)) * 0.12
 	_model.rotation.x = -0.08
 

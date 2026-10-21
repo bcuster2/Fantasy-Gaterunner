@@ -24,7 +24,7 @@ func _ready() -> void:
 	var kinds := {}
 	var templates := {}
 	var segments := {}
-	var lines: PackedStringArray = ["level,seed,kind,template,length,events,gen_ms,difficulty_scale,est_win,est_hp"]
+	var lines: PackedStringArray = ["level,seed,kind,template,length,events,gen_ms,difficulty_scale,est_win,est_hp,zone,boss,modifiers"]
 
 	for level in range(1, count + 1):
 		var seed_value := LevelSeed.for_level(level)
@@ -40,6 +40,7 @@ func _ready() -> void:
 			max_ms = ms
 			max_level = level
 		var ctx := LevelBuilder.make_context(level, db, balance, RandomNumberGenerator.new())
+		ctx["modifiers"] = plan.get("modifiers", [])
 		var problems := Fairness.validate(plan, ctx, db["enemies"], float(gen.get("density_window", 25.0)),
 			Curves.named(balance, "max_density", level), float(gen.get("wall_lookback", 140.0)))
 		for p in problems:
@@ -53,8 +54,9 @@ func _ready() -> void:
 		templates[plan["template"]] = int(templates.get(plan["template"], 0)) + 1
 		for seg: Dictionary in dbg["segments"]:
 			segments[seg["id"]] = int(segments.get(seg["id"], 0)) + 1
-		lines.append("%d,%d,%s,%s,%d,%d,%.2f,%.3f,%s,%.2f" % [level, seed_value, plan["kind"], plan["template"],
-			int(plan["length"]), (plan["events"] as Array).size(), ms, float(dbg["difficulty_scale"]), est["survived"], float(est["hp_frac"])])
+		lines.append("%d,%d,%s,%s,%d,%d,%.2f,%.3f,%s,%.2f,%s%s,%s,%s" % [level, seed_value, plan["kind"], plan["template"],
+			int(plan["length"]), (plan["events"] as Array).size(), ms, float(dbg["difficulty_scale"]), est["survived"], float(est["hp_frac"]),
+			plan["zone"], ("+%d" % int(plan["zone_cycle"])) if int(plan["zone_cycle"]) > 0 else "", plan["boss"].get("id", ""), "|".join(plan["modifiers"])])
 
 	var summary: PackedStringArray = [
 		"Levels checked: %d" % count,

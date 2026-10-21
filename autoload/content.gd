@@ -10,6 +10,9 @@ var levels: Dictionary = {}
 var gates: Dictionary = {}
 var pacing: Dictionary = {}
 var segments: Array = []
+var bosses: Dictionary = {}
+var zones: Dictionary = {}
+var modifiers: Dictionary = {}
 ## Everything above in one table, as passed to the pure generator and simulator.
 var db: Dictionary = {}
 
@@ -30,6 +33,9 @@ func reload() -> void:
 	gates = db["gates"]
 	pacing = db["pacing"]
 	segments = db["segments"]
+	bosses = db["bosses"]
+	zones = db["zones"]
+	modifiers = db["modifiers"]
 	_icons.clear()
 
 

@@ -226,6 +226,40 @@
 			],
 			"weight": 1,
 			"min_level": 10
+		},
+		{
+			"id": "iron_will",
+			"effects": [
+				{
+					"stat": "hp_pct",
+					"op": "add",
+					"value": 40
+				},
+				{
+					"stat": "fire_rate",
+					"op": "mul",
+					"value": 0.8
+				}
+			],
+			"weight": 1.2,
+			"min_level": 5
+		},
+		{
+			"id": "bone_tithe",
+			"effects": [
+				{
+					"stat": "allies_pct",
+					"op": "add",
+					"value": -100
+				},
+				{
+					"stat": "hp_pct",
+					"op": "add",
+					"value": 60
+				}
+			],
+			"weight": 1.0,
+			"min_level": 8
 		}
 	],
 	"summon": [

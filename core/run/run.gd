@@ -2,6 +2,8 @@ extends Node3D
 ## One run through a LevelPlan. Owns the world, the pools, and the per-frame update order:
 ## input -> hero -> spawning -> firing -> allies -> enemies -> projectiles -> gates -> cleanup -> fx.
 ## Every point of damage to an enemy goes through _damage_enemy() so element rules apply uniformly.
+## Levels with a boss end in an arena: the hero stops at the arena line, the boss fights from its dais,
+## and the run is won when the boss falls.
 
 enum State { RUNNING, DEAD, WON }
 
@@ -39,6 +41,16 @@ var _drag_index := -1
 var _elapsed := 0.0
 ## Damage taken by source (enemy id or "shot"); printed with the run summary for tuning.
 var _damage_log: Dictionary = {}
+var boss: Boss = null
+var arena: BossArena = null
+var _boss_event: Dictionary = {}
+var _in_arena := false
+var _zone: Dictionary = {}
+var _boss_cfg: Dictionary = {}
+var _boss_hit_stop_cd := 0.0
+var _summon_hp_mult := 1.0
+var _summon_dmg_mult := 1.0
+var _arena_time := 0.0
 
 
 func _ready() -> void:
@@ -53,8 +65,18 @@ func _ready() -> void:
 	_despawn_behind = Balance.f("enemy.despawn_behind")
 	_number_interval = Balance.f("feel.damage_number_interval")
 
+	_boss_cfg = Balance.section("boss")
+	_zone = ZoneTheme.resolve(Content.zones, String(plan.get("zone", "forest")), int(plan.get("zone_cycle", 0)))
+	for event: Dictionary in _events:
+		match String(event.get("type", "")):
+			"boss":
+				_boss_event = event
+			"enemies":
+				_summon_hp_mult = float(event.get("hp_mult", 1.0))
+				_summon_dmg_mult = float(event.get("dmg_mult", 1.0))
 	_build_environment()
-	TrackBuilder.build(self, _length, _track_width * 0.5, int(plan.get("seed", 1)))
+	var arena_d := float(_boss_event["d"]) if not _boss_event.is_empty() else -1.0
+	TrackBuilder.build(self, _length + (40.0 if arena_d >= 0.0 else 0.0), _track_width * 0.5, int(plan.get("seed", 1)), _zone, arena_d)
 
 	hero = Hero.new()
 	hero.name = "Hero"
@@ -72,6 +94,7 @@ func _ready() -> void:
 	squad.setup()
 	squad.melee_hit.connect(_on_ally_melee)
 	squad.ranged_shot.connect(_on_ally_shot)
+	squad.melee_boss.connect(_on_ally_melee_boss)
 
 	camera = CameraRig.new()
 	add_child(camera)
@@ -81,6 +104,7 @@ func _ready() -> void:
 	add_child(projectiles)
 	projectiles.setup()
 	projectiles.hit.connect(_on_projectile_hit)
+	projectiles.boss_hit.connect(_on_projectile_boss_hit)
 
 	enemy_shots = EnemyShots.new()
 	add_child(enemy_shots)
@@ -111,6 +135,23 @@ func _ready() -> void:
 	hud.set_stats(hero.stats)
 	hud.set_coins(0)
 	_sync_build(false)
+	var modifier_names: Array = []
+	var modifier_lines: PackedStringArray = []
+	for mod: String in plan.get("modifiers", []):
+		var def: Dictionary = Content.modifiers.get(mod, {})
+		modifier_names.append(String(def.get("name", mod.to_upper())))
+		modifier_lines.append("%s: %s" % [def.get("name", mod), def.get("desc", "")])
+	hud.set_modifiers(modifier_names)
+	if int(plan.get("level", 0)) > 0:
+		hud.show_banner(_level_title(), String(_zone.get("name", "")) + ("\n" + "\n".join(modifier_lines) if not modifier_lines.is_empty() else ""))
+	if GameState.start_distance != 0.0:
+		var skip := GameState.start_distance
+		if skip < 0.0:
+			skip = float(_boss_event.get("d", _length)) - 45.0
+		GameState.start_distance = 0.0
+		hero.position.z = -skip
+		while _next_event < _events.size() and float(_events[_next_event]["d"]) < skip and String(_events[_next_event].get("type", "")) != "boss":
+			_next_event += 1
 	if GameState.debug_overlay:
 		_build_debug_overlay()
 	if GameState.is_dev_build():
@@ -155,9 +196,10 @@ func _process(delta: float) -> void:
 		for shot in hero.shots_due(delta):
 			_fire()
 
-	squad.tick(delta, hero.position, enemies)
+	_tick_boss(delta, distance)
+	squad.tick(delta, hero.position, enemies, boss)
 	_tick_enemies(delta)
-	projectiles.tick(delta, enemies)
+	projectiles.tick(delta, enemies, boss)
 	enemy_shots.tick(delta, hero, squad.allies)
 	_check_gates()
 	_sweep_enemies()
@@ -168,7 +210,7 @@ func _process(delta: float) -> void:
 	camera.follow(hero.position, delta)
 	hud.set_progress(distance / _length)
 
-	if state == State.RUNNING and distance >= _length:
+	if state == State.RUNNING and _boss_event.is_empty() and distance >= _length:
 		_win()
 
 
@@ -183,6 +225,8 @@ func _spawn_events(distance: float) -> void:
 				_spawn_enemies(event)
 			"gates":
 				_spawn_gates(event)
+			"boss":
+				_spawn_boss(event)
 
 
 func _spawn_enemies(event: Dictionary) -> void:
@@ -191,13 +235,14 @@ func _spawn_enemies(event: Dictionary) -> void:
 	var center_x := float(event.get("x", 0.0))
 	var hp_mult := float(event.get("hp_mult", 1.0))
 	var element := String(event.get("element", "none"))
+	var elite_def: Dictionary = Content.modifiers.get("elite", {}) if bool(event.get("elite", false)) else {}
 	var half := _track_width * 0.5 - 0.45
 	for offset in Formations.offsets(event):
 		if enemies.size() >= _max_enemies:
 			break
 		var e := _enemy_pool.acquire() as Enemy
 		var x := clampf(center_x + offset.x, -half, half)
-		e.spawn(id, def, hp_mult, Vector3(x, 0, -(float(event["d"]) + offset.y)), element, float(event.get("dmg_mult", 1.0)))
+		e.spawn(id, def, hp_mult, Vector3(x, 0, -(float(event["d"]) + offset.y)), element, float(event.get("dmg_mult", 1.0)), elite_def)
 		enemies.append(e)
 
 
@@ -244,6 +289,10 @@ func _aim_direction(origin: Vector3) -> Vector3:
 		if angle < best_angle:
 			best_angle = angle
 			best = to.normalized()
+	if best == Vector3.FORWARD and boss and boss.fighting:
+		var to_boss := Vector3(boss.position.x - origin.x, 0, boss.position.z - origin.z)
+		if to_boss.z < -0.5:
+			best = to_boss.normalized()
 	return best
 
 
@@ -489,6 +538,8 @@ func _sync_build(element_changed: bool) -> void:
 
 func _on_hero_died() -> void:
 	state = State.DEAD
+	if arena:
+		arena.clear()
 	hero.visible = false
 	enemy_shots.clear()
 	for i in 3:
@@ -525,13 +576,17 @@ func _result(won: bool) -> Dictionary:
 		"won": won, "level": int(plan.get("level", 0)), "distance": minf(-hero.position.z, _length),
 		"hp": hero.stats.hp, "hp_frac": hero.stats.hp / maxf(hero.stats.max_hp, 1.0),
 		"kills": kills, "units": units, "coins": coins, "time": _elapsed, "damage_log": _damage_log.duplicate(),
+		"boss": String(_boss_event.get("boss", "")), "boss_hp_frac": (boss.hp / boss.max_hp) if boss else 0.0,
 	}
 
 
 func _summary() -> String:
 	var s := hero.stats
-	return "Distance  %dm\nKills  %d     Coins  %d\n\nDMG %s  |  RATE %s/s  |  SHOTS %d\n%s  |  ALLIES %d" % [
-		mini(int(-hero.position.z), int(_length)), kills, coins,
+	var boss_line := ""
+	if boss:
+		boss_line = "\n%s %s" % [boss.display_name, "defeated" if not boss.alive else "%d%% HP left" % int(boss.hp / boss.max_hp * 100.0)]
+	return "Distance  %dm\nKills  %d     Coins  %d%s\n\nDMG %s  |  RATE %s/s  |  SHOTS %d\n%s  |  ALLIES %d" % [
+		mini(int(-hero.position.z), int(_length)), kills, coins, boss_line,
 		GateInfo.num(snappedf(s.damage, 0.1)), GateInfo.num(snappedf(s.fire_rate, 0.1)), s.projectiles,
 		Content.element_name(s.element), s.ally_count(),
 	]
@@ -543,6 +598,8 @@ func _log_result(outcome: String) -> void:
 		outcome, -hero.position.z, _elapsed, s.hp, kills, coins, s.damage, s.fire_rate, s.projectiles, s.element, s.allies,
 	])
 	print("[run] damage taken by source: %s" % _damage_log)
+	if boss:
+		print("[run] boss %s hp %d/%d, fight %.1fs" % [boss.boss_id, int(boss.hp), int(boss.max_hp), _elapsed - _arena_time])
 
 
 func _next_level() -> void:
@@ -616,14 +673,17 @@ func _hit_stop(duration: float) -> void:
 func _build_environment() -> void:
 	var env := Environment.new()
 	env.background_mode = Environment.BG_COLOR
-	env.background_color = Color("#9DCBEA")
+	env.background_color = ZoneTheme.color(_zone, "sky", Color("#9DCBEA"))
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color("#C4D3EA")
+	env.ambient_light_color = ZoneTheme.color(_zone, "ambient", Color("#C4D3EA"))
 	env.ambient_light_energy = 0.6
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.fog_enabled = true
-	env.fog_light_color = Color("#A9CFEA")
-	env.fog_density = 0.008
+	env.fog_light_color = ZoneTheme.color(_zone, "fog", Color("#A9CFEA"))
+	env.fog_density = float(_zone.get("fog_density", 0.008))
+	if (plan.get("modifiers", []) as Array).has("fog"):
+		env.fog_density = float(Content.modifiers.get("fog", {}).get("fog_density", 0.05))
+		env.background_color = env.fog_light_color
 	env.fog_sky_affect = 0.0
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
@@ -631,10 +691,146 @@ func _build_environment() -> void:
 
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-52, -35, 0)
-	sun.light_energy = 1.15
-	sun.light_color = Color("#FFF2DC")
+	sun.light_energy = float(_zone.get("sun_energy", 1.15))
+	sun.light_color = ZoneTheme.color(_zone, "sun", Color("#FFF2DC"))
 	sun.shadow_enabled = false
 	add_child(sun)
+
+
+# --- Boss -------------------------------------------------------------------------------------
+
+func _spawn_boss(event: Dictionary) -> void:
+	var def: Dictionary = Content.bosses.get(String(event.get("boss", "")), {})
+	if def.is_empty():
+		return
+	var distance := float(_boss_cfg.get("distance", 20.0))
+	boss = Boss.new()
+	boss.name = "Boss"
+	add_child(boss)
+	boss.setup(event, def, Content.modifiers)
+	boss.position = Vector3(0, 0, -(float(event["d"]) + distance))
+	boss.phase_changed.connect(_on_boss_phase)
+	arena = BossArena.new()
+	add_child(arena)
+	var tint := Content.element_color(boss.element) if boss.element != "none" else Color("#FF5A3B")
+	arena.setup(-float(event["d"]), boss.position.z, _track_width, int(_boss_cfg.get("lanes", 4)), tint)
+	arena.hero_hit.connect(_on_arena_hero_hit)
+	arena.ally_hit.connect(_on_enemy_shot_ally)
+	arena.impact.connect(_on_arena_impact)
+	arena.volley_requested.connect(_on_boss_volley)
+	arena.summon_requested.connect(_on_boss_summon)
+
+
+func _tick_boss(delta: float, distance: float) -> void:
+	if boss == null:
+		return
+	_boss_hit_stop_cd -= delta
+	if not _in_arena and state == State.RUNNING and distance >= float(_boss_event["d"]):
+		_in_arena = true
+		_arena_time = _elapsed
+		hero.set_running(false, float(_boss_cfg.get("stop_time", 0.6)))
+		boss.start_fight()
+		hud.show_boss(boss.display_name, boss.element, boss.max_hp)
+		var weak := Content.weakness_of(boss.element)
+		hud.show_banner(boss.display_name.to_upper(), ("Weak to %s" % Content.element_name(weak)) if weak != "" else "", Color("#FFB3A0"), 1.6)
+		camera.add_trauma(0.4)
+		AudioManager.play("curse", 0.0, 0.0)
+	var orders := boss.tick(delta)
+	if state == State.RUNNING:
+		for attack: Dictionary in orders:
+			arena.execute(attack, hero.position.x, boss.lane_rng())
+	arena.tick(delta, hero, squad.allies)
+
+
+func _damage_boss(base: float, element: String, at: Vector3) -> void:
+	if boss == null or not boss.alive or not boss.fighting:
+		return
+	var mult := CombatMath.element_multiplier(element, boss.element, Content.elements, _combat)
+	var amount := base * mult
+	var killed := boss.take_damage(amount)
+	hud.set_boss_hp(boss.hp, boss.max_hp)
+	numbers.pop(at + Vector3(randf_range(-0.8, 0.8), 0.8, 0.5), GateInfo.num(roundf(amount)) + ("!" if mult > 1.01 else ""),
+		Color("#FFB23E") if mult > 1.01 else (Color(0.7, 0.72, 0.78) if mult < 0.99 else Color("#FFF4C2")), 2.6 if mult > 1.01 else 2.1)
+	if _boss_hit_stop_cd <= 0.0:
+		_boss_hit_stop_cd = float(_boss_cfg.get("hit_stop_cooldown", 0.25))
+		_hit_stop(float(_boss_cfg.get("hit_stop", 0.035)))
+	if killed:
+		_on_boss_defeated()
+
+
+func _on_projectile_boss_hit(damage: float, at: Vector3, element: String) -> void:
+	_damage_boss(damage, element, at)
+	AudioManager.play("hit", -10.0, 0.15, 0.04)
+
+
+func _on_ally_melee_boss(ally: Ally) -> void:
+	if boss:
+		_damage_boss(ally.damage * 0.6, hero.stats.element, boss.position + Vector3(0, boss.hit_height, boss.radius))
+
+
+func _on_boss_phase(index: int) -> void:
+	camera.add_trauma(0.7)
+	_hit_stop(float(_boss_cfg.get("phase_hit_stop", 0.18)))
+	hud.flash(Color("#FF3B3B"), 0.3)
+	hud.show_banner("PHASE %d" % (index + 1), "%s grows desperate!" % boss.display_name, Color("#FF8A6B"), 1.0)
+	bursts.burst(boss.position + Vector3(0, boss.hit_height, 0), Content.element_color(boss.element))
+	AudioManager.play("curse", 0.0, 0.0)
+
+
+func _on_boss_defeated() -> void:
+	arena.clear()
+	for i in 6:
+		bursts.burst(boss.position + Vector3(randf_range(-2, 2), randf_range(1, 4), randf_range(-1, 1)), Content.element_color(boss.element) if i % 2 == 0 else Color("#FFD166"))
+	boss.visible = false
+	camera.add_trauma(1.0)
+	_hit_stop(float(_boss_cfg.get("death_hit_stop", 0.25)))
+	coins += int(roundf(float(boss.def.get("coins", 10)) * float(plan.get("coin_mult", 1.0))))
+	hud.set_coins(coins)
+	AudioManager.play("kill", 0.0, 0.0)
+	_win()
+
+
+func _on_arena_hero_hit(damage: float, at: Vector3) -> void:
+	bursts.burst(at, Color("#FF5A3B"))
+	_damage_log["boss"] = float(_damage_log.get("boss", 0.0)) + damage
+	_hurt_hero(damage)
+
+
+func _on_arena_impact(at: Vector3, tint: Color, strength: float) -> void:
+	bursts.burst(at, tint)
+	camera.add_trauma(strength * 0.5)
+
+
+func _on_boss_volley(attack: Dictionary) -> void:
+	var count := maxi(1, int(attack.get("shots", 3)))
+	var spread := deg_to_rad(float(attack.get("spread", 12.0)))
+	var origin := boss.position + Vector3(0, minf(boss.hit_height, 2.5), boss.radius)
+	var aim := Vector3(hero.position.x - origin.x, 0, hero.position.z - origin.z).normalized()
+	var tint := Content.element_color(boss.element) if boss.element != "none" else Color("#FF5A3B")
+	for k in count:
+		var offset := (k - (count - 1) * 0.5) * (spread / maxf(count - 1, 1))
+		var dir := aim.rotated(Vector3.UP, offset)
+		enemy_shots.spawn(origin, origin + dir * 30.0, float(attack.get("speed", 12.0)), float(attack.get("damage_abs", 8.0)), tint, 32.0)
+	AudioManager.play("enemy_shot", -6.0, 0.1)
+
+
+func _on_boss_summon(attack: Dictionary) -> void:
+	var event := {
+		"d": float(_boss_event["d"]) + 11.0,
+		"type": "enemies",
+		"enemy": String(attack.get("enemy", "grunt")),
+		"formation": String(attack.get("formation", "line")),
+		"count": int(attack.get("count", 3)),
+		"rows": int(attack.get("rows", 2)),
+		"cols": int(attack.get("cols", 3)),
+		"spacing": float(attack.get("spacing", 1.3)),
+		"x": randf_range(-1.0, 1.0),
+		"element": String(attack.get("element", boss.element)),
+		"hp_mult": _summon_hp_mult * float(attack.get("hp", 0.6)),
+		"dmg_mult": _summon_dmg_mult,
+	}
+	_spawn_enemies(event)
+	bursts.burst(Vector3(0, 1.0, -event["d"]), Content.element_color(boss.element))
 
 
 # --- Dev autopilot ----------------------------------------------------------------------------
@@ -652,6 +848,22 @@ func upcoming_mix(horizon: float) -> Dictionary:
 ## gate lane, otherwise lines up with the nearest mobile enemy. It never dodges shots, so it plays a
 ## little worse than a careful human.
 func _autopilot() -> void:
+	# 0. Boss arena: stand in the nearest lane that isn't about to be hit.
+	if _in_arena and arena:
+		var danger := arena.danger_lanes()
+		var here := arena.lane_of(hero.position.x)
+		if danger.has(here):
+			var best_lane := here
+			var best_cost := INF
+			for lane in arena.lanes:
+				if danger.has(lane):
+					continue
+				var cost := absf(lane - here) + absf(lane - (arena.lanes - 1) * 0.5) * 0.1
+				if cost < best_cost:
+					best_cost = cost
+					best_lane = lane
+			hero.target_x = arena.lane_center(best_lane)
+		return
 	# 1. Wall pieces ahead or alongside: take the gap; with no gap, break one piece.
 	var blockers: Array[float] = []
 	var weakest: Enemy = null

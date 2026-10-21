@@ -25,6 +25,9 @@ var autopilot := false
 var open_debug_menu := false
 ## Tools: skip slow-motion/hit-stop so headless harnesses get results immediately.
 var fast_results := false
+## Debug: start the run this many meters in (events before it are skipped). `--start=N`, or the
+## dev menu's SKIP TO BOSS. A negative value means "just before the boss arena".
+var start_distance := 0.0
 
 
 func _ready() -> void:
@@ -40,6 +43,8 @@ func _ready() -> void:
 			god_mode = true
 		elif arg.begins_with("--level="):
 			level = int(arg.get_slice("=", 1))
+		elif arg.begins_with("--start="):
+			start_distance = float(arg.get_slice("=", 1))
 		elif arg.begins_with("--seed="):
 			seed_override = int(arg.get_slice("=", 1))
 

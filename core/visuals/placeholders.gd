@@ -345,3 +345,129 @@ static func make_hero(def: Dictionary) -> Node3D:
 	match String(def.get("model", "wizard")):
 		_:
 			return make_wizard(tint)
+
+
+# --- Bosses (face +Z; scaled by the boss def; meshes named Crystal* glow in the boss element) ----
+
+static func make_boss(def: Dictionary) -> Node3D:
+	var tint := Color(String(def.get("color", "#8A847A")))
+	match String(def.get("model", "")):
+		"dragon":
+			return make_dragon(tint)
+		"lich":
+			return make_lich(tint)
+		"troll_king":
+			return make_troll_king(tint)
+		"shaman":
+			return make_shaman(tint)
+		"colossus":
+			return make_colossus()
+		_:
+			return make_warlord(tint)
+
+
+static func make_dragon(scales: Color) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Model"
+	var body := mat(scales)
+	var belly := mat(scales.lightened(0.35))
+	var dark := mat(scales.darkened(0.45))
+	var glow := mat(Color("#FFB347"), 2.0)
+	root.add_child(part(capsule(0.75, 2.6), body, Vector3(0, 1.3, -0.3), Vector3(90, 0, 0)))
+	root.add_child(part(capsule(0.55, 1.8), belly, Vector3(0, 1.05, -0.2), Vector3(90, 0, 0)))
+	root.add_child(part(cylinder(0.32, 0.48, 1.6, 8), body, Vector3(0, 2.15, 0.85), Vector3(38, 0, 0)))
+	root.add_child(part(box(Vector3(0.7, 0.55, 1.0)), body, Vector3(0, 2.85, 1.45)))
+	root.add_child(part(box(Vector3(0.55, 0.22, 0.6)), dark, Vector3(0, 2.6, 1.85)))
+	root.add_child(part(cylinder(0.0, 0.12, 0.6, 5), dark, Vector3(-0.25, 3.25, 1.2), Vector3(-45, 0, 12)))
+	root.add_child(part(cylinder(0.0, 0.12, 0.6, 5), dark, Vector3(0.25, 3.25, 1.2), Vector3(-45, 0, -12)))
+	root.add_child(named(part(sphere(0.09), glow, Vector3(-0.22, 2.95, 1.93)), "CrystalEyeL"))
+	root.add_child(named(part(sphere(0.09), glow, Vector3(0.22, 2.95, 1.93)), "CrystalEyeR"))
+	root.add_child(part(box(Vector3(2.6, 0.08, 1.5)), dark, Vector3(-1.7, 2.3, -0.3), Vector3(0, 0, 22)))
+	root.add_child(part(box(Vector3(2.6, 0.08, 1.5)), dark, Vector3(1.7, 2.3, -0.3), Vector3(0, 0, -22)))
+	root.add_child(part(cylinder(0.0, 0.42, 2.4, 6), body, Vector3(0, 1.0, -2.4), Vector3(-90, 0, 0)))
+	for leg: Vector3 in [Vector3(-0.55, 0.4, 0.6), Vector3(0.55, 0.4, 0.6), Vector3(-0.55, 0.4, -1.0), Vector3(0.55, 0.4, -1.0)]:
+		root.add_child(part(cylinder(0.16, 0.2, 0.85, 6), dark, leg))
+	return root
+
+
+static func make_lich(robe: Color) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Model"
+	var robe_mat := mat(robe)
+	var bone := mat(Color("#E8E2D0"))
+	var gold := mat(GOLD, 0.5)
+	var glow := mat(Color("#9FE8FF"), 2.0)
+	root.add_child(part(cylinder(0.28, 0.9, 2.3, 10), robe_mat, Vector3(0, 1.45, 0)))
+	root.add_child(part(sphere(0.36), bone, Vector3(0, 2.85, 0.05)))
+	root.add_child(named(part(sphere(0.07), glow, Vector3(-0.13, 2.88, 0.36)), "CrystalEyeL"))
+	root.add_child(named(part(sphere(0.07), glow, Vector3(0.13, 2.88, 0.36)), "CrystalEyeR"))
+	for k in 6:
+		var a := TAU * k / 6.0
+		root.add_child(part(cylinder(0.0, 0.07, 0.32, 4), gold, Vector3(cos(a) * 0.3, 3.22, sin(a) * 0.3)))
+	root.add_child(part(cylinder(0.33, 0.33, 0.1, 12), gold, Vector3(0, 3.08, 0)))
+	root.add_child(part(sphere(0.15), bone, Vector3(-0.75, 1.9, 0.35)))
+	root.add_child(part(sphere(0.15), bone, Vector3(0.75, 1.9, 0.35)))
+	root.add_child(part(cylinder(0.05, 0.05, 3.0, 6), mat(WOOD), Vector3(0.95, 1.8, 0.4)))
+	var gem := named(part(crystal_mesh(), glow, Vector3(0.95, 3.45, 0.4)), "Crystal")
+	gem.scale = Vector3(0.35, 0.55, 0.35)
+	root.add_child(gem)
+	return root
+
+
+static func make_troll_king(skin: Color) -> Node3D:
+	var root := Node3D.new()
+	root.name = "Model"
+	var skin_mat := mat(skin)
+	var dark := mat(skin.darkened(0.35))
+	var gold := mat(GOLD, 0.5)
+	root.add_child(part(capsule(0.95, 2.5), skin_mat, Vector3(0, 1.35, 0)))
+	root.add_child(part(cylinder(1.0, 1.0, 0.5, 10), mat(Color("#5A3A24")), Vector3(0, 1.1, 0)))
+	root.add_child(part(sphere(0.55), skin_mat, Vector3(0, 2.85, 0.15)))
+	root.add_child(part(cylinder(0.42, 0.42, 0.22, 10), gold, Vector3(0, 3.35, 0.15)))
+	for k in 5:
+		var a := TAU * k / 5.0
+		root.add_child(part(cylinder(0.0, 0.08, 0.3, 4), gold, Vector3(cos(a) * 0.38, 3.58, 0.15 + sin(a) * 0.38)))
+	var tusk := mat(Color("#F4EBD0"))
+	root.add_child(part(cylinder(0.0, 0.08, 0.3, 5), tusk, Vector3(-0.2, 2.7, 0.62)))
+	root.add_child(part(cylinder(0.0, 0.08, 0.3, 5), tusk, Vector3(0.2, 2.7, 0.62)))
+	root.add_child(named(part(sphere(0.08), mat(Color("#FFE14D"), 1.8), Vector3(-0.2, 2.95, 0.62)), "CrystalEyeL"))
+	root.add_child(named(part(sphere(0.08), mat(Color("#FFE14D"), 1.8), Vector3(0.2, 2.95, 0.62)), "CrystalEyeR"))
+	root.add_child(part(capsule(0.3, 1.6), dark, Vector3(-1.2, 1.7, 0.1), Vector3(0, 0, 12)))
+	root.add_child(part(capsule(0.3, 1.6), dark, Vector3(1.2, 1.7, 0.1), Vector3(0, 0, -12)))
+	root.add_child(part(cylinder(0.14, 0.34, 2.2, 7), mat(WOOD), Vector3(1.45, 1.4, 0.7), Vector3(55, 0, 0)))
+	return root
+
+
+static func make_warlord(skin: Color) -> Node3D:
+	var root := make_orc(skin)
+	var iron := mat(Color("#6E7177"))
+	root.add_child(part(cylinder(0.32, 0.34, 0.25, 10), iron, Vector3(0, 1.42, 0.02)))
+	root.add_child(part(cylinder(0.0, 0.07, 0.4, 5), mat(Color("#F4EBD0")), Vector3(-0.3, 1.6, 0), Vector3(0, 0, 40)))
+	root.add_child(part(cylinder(0.0, 0.07, 0.4, 5), mat(Color("#F4EBD0")), Vector3(0.3, 1.6, 0), Vector3(0, 0, -40)))
+	root.add_child(part(cylinder(0.035, 0.035, 2.4, 5), mat(WOOD), Vector3(-0.6, 1.2, -0.2)))
+	root.add_child(named(part(box(Vector3(0.7, 0.5, 0.04)), mat(Color("#B23A48"), 0.3), Vector3(-0.95, 2.1, -0.2)), "CrystalBanner"))
+	return root
+
+
+static func make_shaman(skin: Color) -> Node3D:
+	var root := make_goblin(skin, false)
+	root.add_child(part(box(Vector3(0.42, 0.42, 0.08)), mat(Color("#E8E2D0")), Vector3(0, 1.06, 0.3)))
+	for k in 3:
+		root.add_child(part(cylinder(0.0, 0.05, 0.45, 4), mat(Color("#C0392B")), Vector3(-0.15 + k * 0.15, 1.45, -0.05), Vector3(-15, 0, -20 + k * 20)))
+	root.add_child(part(cylinder(0.03, 0.03, 1.5, 5), mat(WOOD), Vector3(0.42, 0.85, 0.15)))
+	var orb := named(part(sphere(0.13), mat(Color("#9FE8FF"), 2.0), Vector3(0.42, 1.65, 0.15)), "CrystalOrb")
+	root.add_child(orb)
+	return root
+
+
+static func make_colossus() -> Node3D:
+	var root := make_golem()
+	root.rotation_degrees.y = 180.0 # golem faces -Z like allies; bosses face +Z
+	for side in [-1.0, 1.0]:
+		var gem := named(part(crystal_mesh(), mat(Color("#9FE8FF"), 2.0), Vector3(side * 0.6, 1.5, 0)), "CrystalShoulder")
+		gem.scale = Vector3(0.25, 0.45, 0.25)
+		root.add_child(gem)
+	var wrapper := Node3D.new()
+	wrapper.name = "Model"
+	wrapper.add_child(root)
+	return wrapper

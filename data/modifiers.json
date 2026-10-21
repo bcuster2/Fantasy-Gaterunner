@@ -1,0 +1,41 @@
+{
+	"_doc": "Level modifiers: rolled per level by the generator once unlocked (balance.json -> modifiers). Shown on the HUD and at the start of the level.",
+	"fog": {
+		"name": "FOG",
+		"desc": "Thick fog hides what's coming.",
+		"min_level": 8,
+		"weight": 1.0,
+		"fog_density": 0.05,
+		"estimator_aim": 0.92
+	},
+	"elite": {
+		"name": "ELITES",
+		"desc": "Some foes are elite: tougher, bigger and richer.",
+		"min_level": 12,
+		"weight": 1.0,
+		"chance": 0.3,
+		"hp": 1.8,
+		"scale": 1.25,
+		"coins": 3
+	},
+	"double_gates": {
+		"name": "DOUBLE GATES",
+		"desc": "Every gate effect is doubled. Good and bad.",
+		"min_level": 16,
+		"weight": 1.0
+	},
+	"boss_enrage": {
+		"name": "BOSS ENRAGE",
+		"desc": "The boss attacks faster and uses every phase.",
+		"min_level": 22,
+		"weight": 1.0,
+		"interval": 0.75,
+		"windup": 0.85
+	},
+	"cursed_only": {
+		"name": "CURSED",
+		"desc": "Every gate along the way is a curse.",
+		"min_level": 30,
+		"weight": 0.6
+	}
+}
