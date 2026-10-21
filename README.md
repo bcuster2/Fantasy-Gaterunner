@@ -4,22 +4,31 @@ A portrait, one-thumb fantasy gate runner for Android (iOS-ready), built in **Go
 The hero auto-runs, you drag to steer, gates rewrite your build, and every level ends in a boss.
 Levels are procedurally generated from data. Level N is the same for every player.
 
-> Status: **Milestone 5: bosses, zones, modifiers** (mini boss every level, major boss every 10th, three cycling zone themes with remixes, five level modifiers). Milestones 1-4 are done.
+> Status: **Milestone 6: economy, shop, saves, UI, tutorial** (coins, five upgrades with soft caps, milestone rewards, versioned saves, all menus, endless level map, first-run tutorial). Milestones 1-5 are done.
 
 ## Running
 
 1. Install Godot **4.7.x stable** (standard build, not .NET).
-2. Open `project.godot` in the editor and press **F5**. The desktop window is 540×960 (portrait).
+2. Open `project.godot` in the editor and press **F5**. The game starts at the main menu; the
+   desktop window is 540×960 (portrait). PLAY opens the level map.
 3. Steer by **dragging with the mouse** (it's emulated as touch) or with **A/D / ←/→**.
 4. In dev builds a purple **DBG** button opens the dev menu: jump to any level, play any seed, god mode,
    grant coins, generator overlay, and stats for the current plan. Level 0 is the hand-made test level.
 
 Command-line flags go after `--`: `--level=N`, `--seed=S`, `--start=M` (start M meters in; `-1` = just before
-the boss), `--autopilot`, `--overlay`, `--god`, `--open-debug`. The dev menu also has **SKIP TO BOSS**.
+the boss), `--autopilot`, `--overlay`, `--god`, `--open-debug`, `--save-dir=user://somewhere` (use a separate
+save, e.g. for screenshots). The dev menu also has **SKIP TO BOSS**. To jump straight into a level, run the
+run scene directly: `godot --path . res://core/run/run.tscn -- --level=57`. Autopilot and tool runs never
+write to the player's save.
 
 ```bash
 # play generated level 57 headless with the bot; prints a [run] summary line
-godot --headless --path . --fixed-fps 60 --quit-after 9000 -- --autopilot --level=57
+godot --headless --path . res://core/run/run.tscn --fixed-fps 60 --quit-after 9000 -- --autopilot --level=57
+```
+
+```bash
+# save system tests (isolated folder): fresh start, round trip, corrupt -> backup -> defaults, merge, migration
+godot --headless --path . res://tools/save_test.tscn
 ```
 
 ```bash
@@ -50,13 +59,15 @@ autoload/        Global singletons (registered in project.godot)
   content.gd       Content: data-driven registry (classes, enemies, levels...)
   game_state.gd    GameState: current mode/level, dev toggles (god mode, autopilot)
   audio_manager.gd AudioManager: pooled SFX players, mute buses (SFX synthesized until M8)
-  level_generator.gd LevelGenerator: produces LevelPlans (M1: serves the test level)
+  level_generator.gd LevelGenerator: produces LevelPlans
+  save_manager.gd  SaveManager: versioned, atomic, corruption-safe save (coins, progress, upgrades...)
 core/
   run/             Run scene (world, pools, update order, boss arena flow), TrackBuilder, ZoneTheme
   hero/            Hero node + HeroStats (pure build state: stats, element, ally counts)
   enemy/           Pooled Enemy node (behaviors: walker, charger, ranged, weaver, static)
   ally/            Ally node + Squad (formation, pooling, attack decisions)
   gates/           GateSet (visual + crossing), GateInfo (text/colors/classification)
+  meta/            Economy: upgrade effects/costs, perks, milestone rewards, run payouts (pure)
   boss/            Boss (phases, attack choice), BossArena (lane telegraphs, waves, hit resolution)
   combat/          CombatMath (pure element/power rules), ProjectileSystem (friendly shots,
                    one MultiMesh), EnemyShots (hostile shots to dodge)
@@ -82,11 +93,15 @@ data/              All content and tuning as JSON
   bosses.json      Bosses: tier, model, element, fight length, phases and attacks
   zones.json       Zone themes (colors, props, major boss) and remix settings
   modifiers.json   Level modifiers (fog, elites, double gates, boss enrage, cursed-only)
+  upgrades.json    Shop upgrades (effects, soft caps, cost curves)
+  milestones.json  Rewards every 10 levels (allies, perks, skins, coin chests) and perk effects
+  skins.json       Hero cosmetics
   gates.json       Gate templates (good/bad/heal/strong/curse/summon) and pattern weights
   pacing.json      Pacing templates (ordered slot roles)
   segments/        Segment library; every JSON file here joins the pool
   levels/          Hand-made levels (test level = level 0)
-ui/                HUD and shared theme (built in code)
+ui/                HUD, shared theme, dev menu
+  screens/         Main menu, mode select, endless level map, shop, settings (built in code)
 tools/             Headless tools (simulator arrives in M4)
 ```
 
@@ -260,6 +275,37 @@ changing anything:
 3. Run `tools/calibrate.tscn` occasionally to confirm the estimator still matches real playthroughs.
 
 See [docs/BALANCE.md](docs/BALANCE.md) for the targets and the pass-1 results.
+
+## Economy and progression
+
+- **Coins** come from kills and the boss (×`coin_multiplier` curve). A win adds a victory bonus, and
+  Treasure Sense/perks multiply the total. Losses keep what you collected (`economy.loss_keep`).
+- **Upgrades** (`data/upgrades.json`):
+  - Arcane Power (+damage %), Vitality (+max HP %), Necromancy (start with skeletons), Treasure Sense
+    (+coins %), Element Mastery (+weakness damage %).
+  - Cost to buy level L+1 = `cost_base × (L+1)^cost_exp`. Past `soft_cap` each level gives `after_cap`
+    instead of `per_level`.
+  - The simulator's economy model checks that a typical player's upgrades track the generator's
+    `player_power`/`player_hp` curves (92-98% through level 500, see docs/BALANCE.md).
+- **Milestones** every 10 levels (`data/milestones.json`): Skeleton Archers (10) and Stone Golems (20)
+  join the summon pool, plus perks (30, 50, 70, 90) and skins (40, 60, 80, 100). Every milestone also
+  gives a coin chest, and past the list every milestone is a scaled chest.
+- **Classes are data** (`data/classes.json`); skins tint the hero.
+
+## Save system
+
+`SaveManager` keeps everything in `user://save.json`:
+
+- **Versioned:** a `version` field plus `_migrate()`. To change the format, bump `VERSION` and add a step.
+- **Atomic:** writes go to a temp file, which is re-read and verified, then swapped in. The previous
+  good save is kept as `save.bak.json`.
+- **Forgiving:** a missing file starts fresh; a corrupt file falls back to the backup, then to
+  defaults. Missing keys are filled and wrong types replaced (`_merge`). Unknown keys from newer
+  versions are kept.
+- **Contents:** coins, campaign progress, upgrades, perks, skins, settings, high scores, daily
+  challenge state, stats, tutorial flag, purchases, and consent.
+
+Covered by `tools/save_test.tscn`.
 
 ## Performance notes
 

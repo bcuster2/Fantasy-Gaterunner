@@ -57,7 +57,33 @@ level plays differently. Pacing templates only decide what you fight between gat
    or 12% on spike/boss levels). Checking only final HP missed runs that recover through max-HP gates.
    Otherwise enemies are scaled down, and crowds are thinned after the second round.
 
-## Pass 3: bosses, modifiers, zones (Milestone 5, current)
+## Pass 4: economy (Milestone 6, current)
+
+The shop now provides the progression the generator assumes, so the expected-player curves were fitted
+to an achievable economy. Because difficulty targeting normalizes enemies to whatever player curve is
+set, the enemy curves were flattened to match:
+
+- `player_power`: linear 0.05, exponent 1.1 → **0.85** (×10.8 damage at level 500 instead of ×47).
+  `player_hp` linear 0.02 → **0.008**.
+- `enemy_hp`: base 1.2 → **1.0**, exponent 1.12 → **0.87**. `enemy_damage` linear 0.02 → **0.008**.
+- Coins: victory bonus 25 × coin curve; losses keep collected coins.
+- Upgrade costs: `cost_base × (L+1)^1.25` for damage/HP (soft cap 60: +10% → +7.5% damage, +5% → +2% HP).
+
+**Economy model** (in the simulator): a typical player retries until each win, banks coins, and buys
+upgrades to stay near the curves.
+
+| level | expected power | shop power | ratio | expected HP | shop HP |
+|---|---|---|---|---|---|
+| 1 | 1.00 | 1.10 | 1.10 | 1.00 | 1.05 |
+| 50 | 2.37 | 2.30 | 0.97 | 1.39 | 1.50 |
+| 100 | 3.48 | 3.40 | 0.98 | 1.79 | 1.90 |
+| 250 | 6.44 | 6.10 | 0.95 | 2.99 | 3.15 |
+| 500 | 10.83 | 9.93 | 0.92 | 4.99 | 4.64 |
+
+Win rates after re-tuning: normal 83%, spike 69%, reward 92%, boss 74%; no broken levels.
+Calibration: 23/23 live levels won, and the estimator agreed on every outcome.
+
+## Pass 3: bosses, modifiers, zones (Milestone 5)
 
 Every level now ends in a boss fight (mini every level, major every 10th), and modifiers roll from level 8.
 

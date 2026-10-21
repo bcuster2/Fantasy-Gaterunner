@@ -13,6 +13,9 @@ var segments: Array = []
 var bosses: Dictionary = {}
 var zones: Dictionary = {}
 var modifiers: Dictionary = {}
+var upgrades: Dictionary = {}
+var milestones: Dictionary = {}
+var skins: Dictionary = {}
 ## Everything above in one table, as passed to the pure generator and simulator.
 var db: Dictionary = {}
 
@@ -36,6 +39,9 @@ func reload() -> void:
 	bosses = db["bosses"]
 	zones = db["zones"]
 	modifiers = db["modifiers"]
+	upgrades = db["upgrades"]
+	milestones = db["milestones"]
+	skins = db["skins"]
 	_icons.clear()
 
 

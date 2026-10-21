@@ -1,0 +1,60 @@
+{
+	"_doc": "Permanent shop upgrades. effect = per_level * level (after soft_cap each level only adds after_cap). Cost to buy level L+1 = cost_base * (L+1)^cost_exp, x cost_softcap_mult past the soft cap; or cost_list for short tracks. max_level 0 = unlimited. Tuned so a typical player's damage/HP tracks the generator's player_power / player_hp curves (see docs/BALANCE.md, Economy).",
+	"damage": {
+		"name": "Arcane Power",
+		"desc": "+{effect}% damage",
+		"stat": "damage_pct",
+		"per_level": 10,
+		"soft_cap": 60,
+		"after_cap": 7.5,
+		"max_level": 0,
+		"cost_base": 30,
+		"cost_exp": 1.25,
+		"cost_softcap_mult": 1.0
+	},
+	"health": {
+		"name": "Vitality",
+		"desc": "+{effect}% max HP",
+		"stat": "hp_pct",
+		"per_level": 5,
+		"soft_cap": 60,
+		"after_cap": 2,
+		"max_level": 0,
+		"cost_base": 25,
+		"cost_exp": 1.25,
+		"cost_softcap_mult": 1.0
+	},
+	"summon": {
+		"name": "Necromancy",
+		"desc": "Start each run with {effect} skeleton allies",
+		"stat": "start_allies",
+		"per_level": 1,
+		"max_level": 6,
+		"cost_list": [
+			400,
+			1500,
+			5000,
+			15000,
+			40000,
+			100000
+		]
+	},
+	"coins": {
+		"name": "Treasure Sense",
+		"desc": "+{effect}% coins",
+		"stat": "coin_pct",
+		"per_level": 5,
+		"max_level": 40,
+		"cost_base": 80,
+		"cost_exp": 1.5
+	},
+	"mastery": {
+		"name": "Element Mastery",
+		"desc": "+{effect}% damage on weaknesses",
+		"stat": "weak_bonus_pct",
+		"per_level": 4,
+		"max_level": 50,
+		"cost_base": 100,
+		"cost_exp": 1.45
+	}
+}

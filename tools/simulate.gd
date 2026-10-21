@@ -75,18 +75,97 @@ func _ready() -> void:
 			"cumulative_coins": cumulative_coins, "scale": float(plan["debug"]["difficulty_scale"]), "flags": " ".join(flags),
 		})
 
+	var economy := _economy(rows, balance)
 	_write_csv(rows)
 	_write_report(rows, samples, Time.get_ticks_msec() - started)
+	_append_economy(economy)
 	get_tree().quit()
+
+
+## Economy model: a typical player clears each level after 1/win_rate attempts (losses keep coins),
+## banks coins with their coin upgrades, and buys upgrades to stay near the generator's expected
+## curves (damage first, then HP; coins/mastery/summons as side purchases). Compares the resulting
+## damage/HP multipliers to player_power / player_hp. Ratios near 1.0 mean the shop delivers the
+## progression the generator assumes.
+func _economy(rows: Array[Dictionary], balance: Dictionary) -> Array[Dictionary]:
+	var ups: Dictionary = Content.upgrades
+	var levels := {}
+	for id: String in ups:
+		levels[id] = 0
+	var bank := 0.0
+	var out: Array[Dictionary] = []
+	for r in rows:
+		var n := int(r["level"])
+		var attempts := 1.0 / maxf(float(r["casual_win"]), 0.2)
+		var coin_bonus := Economy.coin_multiplier(ups, levels, {}, [])
+		var run_coins := float(r["coins_casual"]) + float(balance["economy"].get("win_bonus", 25)) * Curves.named(balance, "coin_multiplier", n)
+		bank += run_coins * (1.0 + 0.4 * (attempts - 1.0)) * coin_bonus
+		var want_power := Curves.named(balance, "player_power", n + 1)
+		var want_hp := Curves.named(balance, "player_hp", n + 1)
+		while true:
+			var best_id := ""
+			var best_pri := 0.9
+			var best_cost := 0
+			for id: String in ups:
+				var price := Economy.cost(ups[id], int(levels[id]))
+				if price < 0 or price > bank:
+					continue
+				var pri := 0.0
+				match String(ups[id].get("stat", "")):
+					"damage_pct":
+						pri = want_power / (1.0 + Economy.effect(ups[id], int(levels[id])) / 100.0)
+					"hp_pct":
+						pri = want_hp / (1.0 + Economy.effect(ups[id], int(levels[id])) / 100.0) * 0.95
+					"coin_pct":
+						pri = 1.05 if levels[id] < n / 6.0 else 0.0
+					"weak_bonus_pct":
+						pri = 0.95 if levels[id] < n / 8.0 else 0.0
+					_:
+						pri = 0.92 if levels[id] < n / 40.0 else 0.0
+				if pri > best_pri or (is_equal_approx(pri, best_pri) and price < best_cost):
+					best_pri = pri
+					best_id = id
+					best_cost = price
+			if best_id == "":
+				break
+			bank -= best_cost
+			levels[best_id] = int(levels[best_id]) + 1
+		var power := 1.0 + Economy.bonus("damage_pct", ups, levels, {}, []) / 100.0
+		var hp := 1.0 + Economy.bonus("hp_pct", ups, levels, {}, []) / 100.0
+		r["econ_power"] = power
+		r["econ_power_ratio"] = power / Curves.named(balance, "player_power", n)
+		r["econ_hp_ratio"] = hp / Curves.named(balance, "player_hp", n)
+		out.append({"level": n, "expected_power": Curves.named(balance, "player_power", n), "power": power,
+			"expected_hp": Curves.named(balance, "player_hp", n), "hp": hp, "levels": levels.duplicate(), "bank": bank})
+	return out
+
+
+func _append_economy(economy: Array[Dictionary]) -> void:
+	var md: PackedStringArray = ["", "## Economy model", "",
+		"Typical player: retries until each win (losses keep coins), then buys upgrades to track the expected curves.", "",
+		"| level | expected power | shop power | ratio | expected HP | shop HP | upgrade levels | bank |", "|---|---|---|---|---|---|---|---|"]
+	for e in economy:
+		if not [1, 10, 25, 50, 75, 100, 150, 200, 250, 300, 400, 500].has(int(e["level"])):
+			continue
+		md.append("| %d | %.2f | %.2f | %.2f | %.2f | %.2f | %s | %d |" % [e["level"], e["expected_power"], e["power"], float(e["power"]) / float(e["expected_power"]),
+			e["expected_hp"], e["hp"], e["levels"], int(e["bank"])])
+	var file := FileAccess.open("res://reports/sim_report.md", FileAccess.READ_WRITE)
+	file.seek_end()
+	file.store_string("
+".join(md) + "
+")
+	file.close()
+	print("
+".join(md))
 
 
 func _write_csv(rows: Array[Dictionary]) -> void:
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("res://reports"))
-	var lines: PackedStringArray = ["level,kind,template,length_m,run_seconds,best_win,best_hp,median_win,median_hp,casual_win_rate,casual_hp,coins_best,coins_casual,cumulative_coins,difficulty_scale,flags"]
+	var lines: PackedStringArray = ["level,kind,template,length_m,run_seconds,best_win,best_hp,median_win,median_hp,casual_win_rate,casual_hp,coins_best,coins_casual,cumulative_coins,difficulty_scale,econ_power,econ_power_ratio,econ_hp_ratio,flags"]
 	for r in rows:
-		lines.append("%d,%s,%s,%d,%.1f,%s,%.3f,%s,%.3f,%.3f,%.3f,%.1f,%.1f,%.0f,%.3f,%s" % [r["level"], r["kind"], r["template"], r["length"], r["seconds"],
+		lines.append("%d,%s,%s,%d,%.1f,%s,%.3f,%s,%.3f,%.3f,%.3f,%.1f,%.1f,%.0f,%.3f,%.2f,%.3f,%.3f,%s" % [r["level"], r["kind"], r["template"], r["length"], r["seconds"],
 			r["best_win"], r["best_hp"], r["median_win"], r["median_hp"], r["casual_win"], r["casual_hp"], r["coins_best"], r["coins_casual"],
-			r["cumulative_coins"], r["scale"], r["flags"]])
+			r["cumulative_coins"], r["scale"], r.get("econ_power", 0.0), r.get("econ_power_ratio", 0.0), r.get("econ_hp_ratio", 0.0), r["flags"]])
 	FileAccess.open("res://reports/sim_levels.csv", FileAccess.WRITE).store_string("\n".join(lines) + "\n")
 
 

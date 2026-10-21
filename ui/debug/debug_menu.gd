@@ -93,7 +93,7 @@ func setup(plan: Dictionary) -> void:
 
 	var misc_row := _row(col)
 	misc_row.add_child(_button("+1000 COINS", func() -> void:
-		GameState.coins += 1000
+		SaveManager.add_coins(1000)
 		_refresh()))
 	misc_row.add_child(_button("TEST LEVEL", func() -> void: _play(0, -1)))
 	misc_row.add_child(_button("SKIP TO BOSS", func() -> void:
@@ -132,7 +132,7 @@ func _refresh() -> void:
 		"Zone %s  palette %s  length %dm  events %d" % [_plan.get("zone", "-"), _plan.get("palette", []), int(_plan.get("length", 0)), (_plan.get("events", []) as Array).size()],
 		"Gen %.1f ms  difficulty scale %.2f  fixes %s" % [float(dbg.get("gen_ms", 0)), float(dbg.get("difficulty_scale", 1)), dbg.get("fixes", {})],
 		"Estimate (best path): %s, hp %d%%, kills %d/%d" % ["WIN" if est.get("survived", false) else "LOSS", int(float(est.get("hp_frac", 0)) * 100), int(est.get("kills", 0)), int(est.get("units", 0))],
-		"Hero power x%.2f  hp x%.2f  coins %d" % [float(_plan.get("hero_power", 1)), float(_plan.get("hero_hp_power", 1)), GameState.coins],
+		"Hero power x%.2f  hp x%.2f  coins %d" % [float(_plan.get("hero_power", 1)), float(_plan.get("hero_hp_power", 1)), SaveManager.coins()],
 	]
 	_info.text = "\n".join(lines)
 

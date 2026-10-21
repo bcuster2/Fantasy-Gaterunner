@@ -67,7 +67,9 @@
 	},
 	"economy": {
 		"_doc": "Per-kill coins are defined per enemy in enemies.json; this scales them.",
-		"coin_multiplier": 1.0
+		"coin_multiplier": 1.0,
+		"win_bonus": 25,
+		"loss_keep": 1.0
 	},
 	"allies": {
 		"_doc": "Formation and ally tuning.",
@@ -82,14 +84,14 @@
 	"curves": {
 		"_doc": "Difficulty as functions of level N: value = base * (1 + linear * (N-1)^exponent), clamped to cap (0 = no cap). Tune here, then run the simulator to see the effect across levels 1-500.",
 		"enemy_hp": {
-			"base": 1.2,
+			"base": 1.0,
 			"linear": 0.031,
-			"exponent": 1.12,
+			"exponent": 0.87,
 			"cap": 0
 		},
 		"enemy_damage": {
 			"base": 1.15,
-			"linear": 0.02,
+			"linear": 0.008,
 			"exponent": 1.0,
 			"cap": 0
 		},
@@ -97,12 +99,12 @@
 			"_doc": "Expected damage multiplier from shop upgrades at level N. Scales additive gate values, ally power and the expected hero used by fairness checks.",
 			"base": 1.0,
 			"linear": 0.05,
-			"exponent": 1.1,
+			"exponent": 0.85,
 			"cap": 0
 		},
 		"player_hp": {
 			"base": 1.0,
-			"linear": 0.02,
+			"linear": 0.008,
 			"exponent": 1.0,
 			"cap": 0
 		},
@@ -162,7 +164,7 @@
 		"repair_scale": 0.88,
 		"max_repairs": 8,
 		"wall_lookback": 140.0,
-		"debug_assume_upgrades": true,
+		"debug_assume_upgrades": false,
 		"density_ramp_start": 0.2,
 		"hp_ramp_start": 0.75,
 		"ramp_full_at": 0.6,

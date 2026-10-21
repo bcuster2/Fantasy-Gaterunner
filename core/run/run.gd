@@ -51,6 +51,15 @@ var _boss_hit_stop_cd := 0.0
 var _summon_hp_mult := 1.0
 var _summon_dmg_mult := 1.0
 var _arena_time := 0.0
+## Shop coin bonus (upgrades + perks) applied to the payout at the end.
+var _coin_bonus := 1.0
+var _ended := false
+## First-run tutorial (level 1 until completed once).
+var _tutorial := false
+var _tutorial_step := 0
+## The next tutorial tip waits until this time so tips never cover each other.
+var _tutorial_hold := 0.0
+var _tutorial_gate_z := 0.0
 
 
 func _ready() -> void:
@@ -81,9 +90,18 @@ func _ready() -> void:
 	hero = Hero.new()
 	hero.name = "Hero"
 	add_child(hero)
-	hero.setup(Content.hero_class(GameState.hero_class))
+	var class_def := Content.hero_class(GameState.hero_class).duplicate()
+	var skin: Dictionary = Content.skins.get(String(SaveManager.data.get("selected_skin", "default")), {})
+	if skin.has("robe"):
+		class_def["color"] = skin["robe"]
+	hero.setup(class_def)
 	if GameState.assume_upgrades:
 		LevelBuilder.apply_level_scaling(hero.stats, float(plan.get("hero_power", 1.0)), float(plan.get("hero_hp_power", 1.0)))
+	else:
+		# Real progression: shop upgrades and milestone perks.
+		var perk_defs: Dictionary = Content.milestones.get("perks", {})
+		_combat = Economy.apply_to_hero(hero.stats, _combat, Content.upgrades, SaveManager.upgrade_levels(), perk_defs, SaveManager.perks())
+		_coin_bonus = Economy.coin_multiplier(Content.upgrades, SaveManager.upgrade_levels(), perk_defs, SaveManager.perks())
 	hero.stats.ally_power = float(plan.get("ally_power", 1.0))
 	hero.refresh_hp()
 	hero.died.connect(_on_hero_died)
@@ -129,6 +147,7 @@ func _ready() -> void:
 	add_child(hud)
 	hud.restart_requested.connect(_restart)
 	hud.next_requested.connect(_next_level)
+	hud.menu_requested.connect(func() -> void: GameState.go("map"))
 	hud.set_level_title(_level_title())
 	hero.hp_changed.connect(hud.set_hp)
 	hud.set_hp(hero.stats.hp, hero.stats.max_hp)
@@ -144,6 +163,7 @@ func _ready() -> void:
 	hud.set_modifiers(modifier_names)
 	if int(plan.get("level", 0)) > 0:
 		hud.show_banner(_level_title(), String(_zone.get("name", "")) + ("\n" + "\n".join(modifier_lines) if not modifier_lines.is_empty() else ""))
+	_tutorial = GameState.mode == "campaign" and int(plan.get("level", 0)) == 1 and not bool(SaveManager.data.get("tutorial_done", false)) and not GameState.autopilot
 	if GameState.start_distance != 0.0:
 		var skip := GameState.start_distance
 		if skip < 0.0:
@@ -185,6 +205,8 @@ func _input(event: InputEvent) -> void:
 func _process(delta: float) -> void:
 	_elapsed += delta
 	_hurt_fx_cooldown -= delta
+	if _tutorial:
+		_tick_tutorial()
 	if GameState.autopilot and state == State.RUNNING:
 		_autopilot()
 
@@ -549,11 +571,12 @@ func _on_hero_died() -> void:
 	_log_result("DIED")
 	finished.emit(_result(false))
 	if GameState.fast_results:
+		_finish_run(false)
 		return
 	Engine.time_scale = Balance.f("feel.death_slowmo_scale")
 	await get_tree().create_timer(Balance.f("feel.death_slowmo_time"), true, false, true).timeout
 	Engine.time_scale = 1.0
-	hud.show_result(false, _summary(), false)
+	_finish_run(false)
 
 
 func _win() -> void:
@@ -562,7 +585,7 @@ func _win() -> void:
 	AudioManager.play("win", 0.0, 0.0)
 	for i in 4:
 		bursts.burst(hero.position + Vector3(randf_range(-3, 3), 2.0, -2.0), [Color("#FFD166"), Color("#3FA9FF"), Color("#FF6B6B"), Color("#7CF29A")][i])
-	hud.show_result(true, _summary(), int(plan.get("level", 0)) > 0)
+	_finish_run(true)
 	_log_result("WON")
 	finished.emit(_result(true))
 
@@ -600,6 +623,39 @@ func _log_result(outcome: String) -> void:
 	print("[run] damage taken by source: %s" % _damage_log)
 	if boss:
 		print("[run] boss %s hp %d/%d, fight %.1fs" % [boss.boss_id, int(boss.hp), int(boss.max_hp), _elapsed - _arena_time])
+
+
+## Banks the payout, records progress, and shows the results screen (once per run).
+func _finish_run(won: bool) -> void:
+	if _ended:
+		return
+	_ended = true
+	var level := int(plan.get("level", 0))
+	var payout := Economy.run_payout(coins, won, level, Balance.data, _coin_bonus)
+	var reward := {}
+	# Bot/tool runs never touch the player's save.
+	var campaign := GameState.mode == "campaign" and level > 0 and not GameState.fast_results and not GameState.autopilot
+	if campaign:
+		reward = SaveManager.record_campaign_run(level, won, int(payout["total"]), kills, _elapsed)
+	var lines: PackedStringArray = [_summary(), ""]
+	lines.append("Coins collected  %d" % int(payout["collected"]))
+	if int(payout["win_bonus"]) > 0:
+		lines.append("Victory bonus  +%d" % int(payout["win_bonus"]))
+	if int(payout["upgrade_bonus"]) > 0:
+		lines.append("Treasure Sense  +%d" % int(payout["upgrade_bonus"]))
+	lines.append("TOTAL  +%d" % int(payout["total"]))
+	var buttons: Array = []
+	if won and level > 0:
+		buttons.append(["NEXT LEVEL", _next_level])
+	buttons.append(["REPLAY" if won else "TRY AGAIN", _restart])
+	if not won:
+		buttons.append(["UPGRADES", func() -> void:
+			GameState.return_screen = "map"
+			GameState.go("shop")])
+	buttons.append(["MAP", func() -> void: GameState.go("map")])
+	hud.show_result(won, "\n".join(lines), buttons)
+	if not reward.is_empty():
+		hud.show_reward(reward)
 
 
 func _next_level() -> void:
@@ -831,6 +887,61 @@ func _on_boss_summon(attack: Dictionary) -> void:
 	}
 	_spawn_enemies(event)
 	bursts.burst(Vector3(0, 1.0, -event["d"]), Content.element_color(boss.element))
+
+
+# --- First-run tutorial ----------------------------------------------------------------------
+
+## Short guided first run in level 1: steering, auto-attack, gates, and boss telegraphs. Uses gentle
+## slow motion at the two moments that need a decision.
+func _tick_tutorial() -> void:
+	var distance := -hero.position.z
+	# The gate tip outranks earlier tips: it must appear before the first gate arrives.
+	if _tutorial_step in [1, 2]:
+		for gate_set in gate_sets:
+			if hero.position.z - gate_set.position.z < 26.0:
+				_tutorial_step = 2
+				_tutorial_hold = 0.0
+	if _elapsed < _tutorial_hold and _tutorial_step not in [3, 6]:
+		return
+	match _tutorial_step:
+		0:
+			hud.show_tip("Drag left and right to steer", 3.0)
+			_tutorial_hold = _elapsed + 2.2
+			_tutorial_step = 1
+		1:
+			for e in enemies:
+				if e.active and hero.position.z - e.position.z < 22.0:
+					hud.show_tip("Your mage attacks automatically.\nLine up with enemies!", 3.0)
+					_tutorial_hold = _elapsed + 2.2
+					_tutorial_step = 2
+					break
+		2:
+			for gate_set in gate_sets:
+				if hero.position.z - gate_set.position.z < 26.0:
+					hud.show_tip("Steer through a gate to power up.\nPick one!", 30.0)
+					_tutorial_gate_z = gate_set.position.z
+					Engine.time_scale = 0.45
+					_tutorial_step = 3
+					break
+		3:
+			if hero.position.z < _tutorial_gate_z - 0.5 or distance > 80.0:
+				Engine.time_scale = 1.0
+				hud.show_tip("Every gate changes your build.\nAdapt to what you're offered!", 3.0)
+				_tutorial_hold = _elapsed + 3.2
+				_tutorial_step = 4
+		4:
+			if _in_arena:
+				hud.show_tip("Boss! Red lanes are about to be hit.\nSteer out of them!", 4.0)
+				_tutorial_step = 5
+		5:
+			if arena and not arena.danger_lanes().is_empty():
+				Engine.time_scale = 0.5
+				_tutorial_step = 6
+		6:
+			if arena and arena.danger_lanes().is_empty():
+				Engine.time_scale = 1.0
+				_tutorial_step = 7
+				_tutorial = false
 
 
 # --- Dev autopilot ----------------------------------------------------------------------------

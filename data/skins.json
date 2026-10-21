@@ -1,0 +1,28 @@
+{
+	"_doc": "Hero cosmetics. unlock = 'default' or a milestone level. robe/orb colors tint the placeholder model.",
+	"default": {
+		"name": "Battlemage",
+		"robe": "#3F6FD8",
+		"unlock": "default"
+	},
+	"ember": {
+		"name": "Ember Robes",
+		"robe": "#C0392B",
+		"unlock": 40
+	},
+	"frost": {
+		"name": "Frost Robes",
+		"robe": "#5DADE2",
+		"unlock": 60
+	},
+	"storm": {
+		"name": "Storm Robes",
+		"robe": "#8E44AD",
+		"unlock": 80
+	},
+	"royal": {
+		"name": "Royal Robes",
+		"robe": "#D4AC0D",
+		"unlock": 100
+	}
+}

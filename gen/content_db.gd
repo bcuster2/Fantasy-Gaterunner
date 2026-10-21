@@ -16,6 +16,9 @@ static func load_all() -> Dictionary:
 		"bosses": JsonUtil.strip_comments(JsonUtil.load_dict("res://data/bosses.json")),
 		"zones": JsonUtil.load_dict("res://data/zones.json"),
 		"modifiers": JsonUtil.strip_comments(JsonUtil.load_dict("res://data/modifiers.json")),
+		"upgrades": JsonUtil.strip_comments(JsonUtil.load_dict("res://data/upgrades.json")),
+		"milestones": JsonUtil.load_dict("res://data/milestones.json"),
+		"skins": JsonUtil.strip_comments(JsonUtil.load_dict("res://data/skins.json")),
 		"levels": JsonUtil.load_dir("res://data/levels"),
 		"segments": [],
 	}

@@ -1,0 +1,84 @@
+{
+	"_doc": "Rewards for finishing every 10th level. Listed levels give their reward plus a coin chest; past the list every milestone gives a scaled coin chest (chest_base x coin_multiplier curve). reward types: ally (new summon type enters the gate pool at that level), perk, skin, coins.",
+	"chest_base": 120,
+	"rewards": {
+		"10": {
+			"type": "ally",
+			"id": "archer",
+			"title": "New ally: Skeleton Archers",
+			"desc": "Archer summons can now appear in gates."
+		},
+		"20": {
+			"type": "ally",
+			"id": "golem",
+			"title": "New ally: Stone Golems",
+			"desc": "Golem summons can now appear in gates."
+		},
+		"30": {
+			"type": "perk",
+			"id": "thick_hide",
+			"title": "Perk: Thick Hide",
+			"desc": "+10% max HP, always."
+		},
+		"40": {
+			"type": "skin",
+			"id": "ember",
+			"title": "Skin: Ember Robes",
+			"desc": "A battlemage of the volcano."
+		},
+		"50": {
+			"type": "perk",
+			"id": "arcane_focus",
+			"title": "Perk: Arcane Focus",
+			"desc": "Start every run with +1 shot."
+		},
+		"60": {
+			"type": "skin",
+			"id": "frost",
+			"title": "Skin: Frost Robes",
+			"desc": "Cold as the crypt."
+		},
+		"70": {
+			"type": "perk",
+			"id": "treasure_nose",
+			"title": "Perk: Treasure Nose",
+			"desc": "+10% coins, always."
+		},
+		"80": {
+			"type": "skin",
+			"id": "storm",
+			"title": "Skin: Storm Robes",
+			"desc": "Crackling with lightning."
+		},
+		"90": {
+			"type": "perk",
+			"id": "battle_ready",
+			"title": "Perk: Battle Ready",
+			"desc": "+15% damage, always."
+		},
+		"100": {
+			"type": "skin",
+			"id": "royal",
+			"title": "Skin: Royal Robes",
+			"desc": "For the champion of a hundred gates."
+		}
+	},
+	"perks": {
+		"thick_hide": {
+			"name": "Thick Hide",
+			"hp_pct": 10
+		},
+		"arcane_focus": {
+			"name": "Arcane Focus",
+			"projectiles": 1
+		},
+		"treasure_nose": {
+			"name": "Treasure Nose",
+			"coin_pct": 10
+		},
+		"battle_ready": {
+			"name": "Battle Ready",
+			"damage_pct": 15
+		}
+	}
+}

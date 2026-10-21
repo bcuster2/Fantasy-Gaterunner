@@ -4,6 +4,7 @@ extends CanvasLayer
 
 signal restart_requested
 signal next_requested
+signal menu_requested
 
 const STAT_ORDER := ["damage", "fire_rate", "projectiles"]
 const STAT_CAPTIONS := {"damage": "DAMAGE", "fire_rate": "FIRE RATE", "projectiles": "SHOTS"}
@@ -31,6 +32,10 @@ var _modifier_row: HBoxContainer
 var _banner: VBoxContainer
 var _banner_title: Label
 var _banner_body: Label
+var _tip: PanelContainer
+var _tip_label: Label
+var _tip_tween: Tween
+var _banner_tween: Tween
 var _hint_time := 0.0
 var _hint_fading := false
 var _overlay: Control
@@ -58,6 +63,7 @@ func _ready() -> void:
 	_build_stat_chips(root)
 	_build_hint(root)
 	_build_banner(root)
+	_build_tip(root)
 	_build_modifier_row(root)
 	_build_overlay(root)
 
@@ -111,7 +117,10 @@ func show_banner(title: String, body := "", color := Color.WHITE, seconds := 2.2
 	_banner.visible = true
 	_banner.modulate.a = 0.0
 	_banner.scale = Vector2.ONE
+	if _banner_tween:
+		_banner_tween.kill()
 	var tween := create_tween()
+	_banner_tween = tween
 	tween.tween_property(_banner, "modulate:a", 1.0, 0.2)
 	tween.tween_interval(seconds)
 	tween.tween_property(_banner, "modulate:a", 0.0, 0.5)
@@ -182,11 +191,79 @@ func hide_hint() -> void:
 	tween.tween_callback(_hint.hide)
 
 
-func show_result(won: bool, body: String, can_advance := false) -> void:
-	var buttons: Array = [["NEXT LEVEL", func() -> void: next_requested.emit()]] if won and can_advance else []
-	buttons.append(["REPLAY" if won else "TRY AGAIN", _on_restart])
+## buttons: [[label, callable], ...] built by Run (next / replay / upgrades / map).
+func show_result(won: bool, body: String, buttons: Array) -> void:
 	_show_overlay("VICTORY!" if won else "DEFEATED", body, buttons)
 	_overlay_title.modulate = Color("#FFD166") if won else Color("#FF6B6B")
+	_overlay_body.add_theme_font_size_override("font_size", 36)
+
+
+## Milestone popup: a modal on top of the results that the player dismisses with CLAIM.
+func show_reward(reward: Dictionary) -> void:
+	var root: Control = _overlay.get_parent()
+	var modal := Control.new()
+	modal.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.add_child(modal)
+	var dim := ColorRect.new()
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dim.color = Color(0, 0, 0, 0.7)
+	modal.add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	modal.add_child(center)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(860, 0)
+	var style := UiTheme.box(Color(0.16, 0.1, 0.28, 0.97), 34, 34)
+	style.border_color = Color("#FFD166")
+	style.set_border_width_all(6)
+	panel.add_theme_stylebox_override("panel", style)
+	center.add_child(panel)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 22)
+	panel.add_child(col)
+	var lines := [
+		["LEVEL %d MILESTONE!" % int(reward.get("level", 0)), 66, Color("#FFD166")],
+		[String(reward.get("title", "Treasure chest")), 48, Color.WHITE],
+		[String(reward.get("desc", "")), 36, Color(1, 1, 1, 0.8)],
+		["+%d coins" % int(reward.get("coins", 0)), 56, Color("#FFC93C")],
+	]
+	for entry: Array in lines:
+		var l := Label.new()
+		l.text = entry[0]
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.add_theme_font_size_override("font_size", entry[1])
+		l.modulate = entry[2]
+		col.add_child(l)
+	var claim := Button.new()
+	claim.text = "CLAIM!"
+	claim.custom_minimum_size = Vector2(0, 130)
+	claim.focus_mode = Control.FOCUS_NONE
+	claim.add_theme_stylebox_override("normal", UiTheme.box(Color("#E67E22"), 28, 26))
+	claim.pressed.connect(func() -> void:
+		AudioManager.play("coin", 0.0, 0.0)
+		modal.queue_free())
+	col.add_child(claim)
+	panel.pivot_offset = Vector2(430, 300)
+	panel.scale = Vector2(0.6, 0.6)
+	create_tween().tween_property(panel, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	AudioManager.play("win", 0.0, 0.0)
+
+
+## Tutorial / hint text in the lower middle of the screen.
+func show_tip(text: String, seconds := 3.0) -> void:
+	_tip_label.text = text
+	_tip.visible = true
+	_tip.modulate.a = 0.0
+	if _tip_tween:
+		_tip_tween.kill() # a previous tip's fade-out must not hide this one
+	var tween := create_tween()
+	_tip_tween = tween
+	tween.tween_property(_tip, "modulate:a", 1.0, 0.2)
+	tween.tween_interval(seconds)
+	tween.tween_property(_tip, "modulate:a", 0.0, 0.4)
+	tween.tween_callback(_tip.hide)
+	hide_hint()
 
 
 # --- Layout -----------------------------------------------------------------------------------
@@ -374,6 +451,23 @@ func _build_modifier_row(root: Control) -> void:
 	root.add_child(_modifier_row)
 
 
+func _build_tip(root: Control) -> void:
+	_tip = PanelContainer.new()
+	_tip.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_tip.add_theme_stylebox_override("panel", UiTheme.box(Color(0.05, 0.05, 0.12, 0.82), 26, 22))
+	_tip.anchor_left = 0.08
+	_tip.anchor_right = 0.92
+	_tip.anchor_top = 0.55
+	_tip.anchor_bottom = 0.55
+	_tip.visible = false
+	root.add_child(_tip)
+	_tip_label = Label.new()
+	_tip_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_tip_label.add_theme_font_size_override("font_size", 44)
+	_tip_label.modulate = Color("#FFE9A8")
+	_tip.add_child(_tip_label)
+
+
 func _build_banner(root: Control) -> void:
 	_banner = VBoxContainer.new()
 	_banner.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -449,7 +543,7 @@ func _show_overlay(title: String, body: String, buttons: Array) -> void:
 	for entry: Array in buttons:
 		var button := Button.new()
 		button.text = entry[0]
-		button.custom_minimum_size = Vector2(0, 140)
+		button.custom_minimum_size = Vector2(0, 118)
 		button.focus_mode = Control.FOCUS_NONE
 		button.pressed.connect(entry[1])
 		_overlay_buttons.add_child(button)
@@ -490,7 +584,23 @@ func _on_pause() -> void:
 	if _overlay.visible:
 		return
 	get_tree().paused = true
-	_show_overlay("PAUSED", "", [["RESUME", _on_resume], ["RESTART", _on_restart]])
+	_show_overlay("PAUSED", "", [
+		["RESUME", _on_resume],
+		["RESTART", _on_restart],
+		[_toggle_label("SOUND", "sfx"), _toggle_setting.bind("sfx")],
+		[_toggle_label("MUSIC", "music"), _toggle_setting.bind("music")],
+		["QUIT TO MAP", func() -> void: menu_requested.emit()],
+	])
+
+
+func _toggle_label(name: String, key: String) -> String:
+	return "%s: %s" % [name, "ON" if SaveManager.setting(key) else "OFF"]
+
+
+func _toggle_setting(key: String) -> void:
+	SaveManager.set_setting(key, not SaveManager.setting(key))
+	_overlay.visible = false
+	_on_pause()
 
 
 func _on_resume() -> void:
