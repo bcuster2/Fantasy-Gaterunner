@@ -145,7 +145,8 @@ element-locked walls. Each element also adds an on-hit effect: fire burns, ice s
 2. **Rhythm.** `Curves.level_kind`: every 10th level is a **boss** level, every 5th a **spike** (harder,
    breather becomes pressure), and levels where `N % 7 == 3` are **reward** levels (easier, extra coins).
 3. **Fixed gate cadence.** Every level: a 40 m intro, 6 gates exactly 58 m apart, a pre-boss gate,
-   and the finish (`generator.cadence`). Each gate rolls random contents (pattern `any`), so builds
+   then a final climax-tier enemy wave before the finish, so levels always end on a fight
+   (`generator.cadence`). Each gate rolls random contents (pattern `any`), so builds
    can't be planned; players adapt to what turns up.
 4. **Pacing template.** A weighted pick from `pacing.json` (unlocked by level) decides only what you
    fight between gates: one role per stretch, e.g. `buildup, pressure, breather, pressure, pressure, climax`.
@@ -158,12 +159,13 @@ element-locked walls. Each element also adds an on-hit effect: fire burns, ice s
 7. **Fairness** (`gen/fairness.gd`):
    - every gate set has a safe option (never two harmful gates as the only choice);
    - every element-locked wall's preceding gate set offers its weakness (or one is inserted);
-   - enemy density per 25 m window stays under the `max_density` curve.
+   - enemy density per 25 m window stays under the `max_density` curve;
+   - every level ends with an enemy wave.
 8. **In-level ramp.** Early segments use part of the level's density and HP (every run starts weak).
 9. **Difficulty targeting.** The estimator's median-gate-path score is steered into a band per level kind
    (`generator.target_median_score`, raised for the first 15 levels) by nudging enemy HP/damage.
 10. **Winnability.** An expected-upgrade hero (`player_power`/`player_hp` curves) on the best gate path
-   must survive with an HP margin. Otherwise enemies are scaled down, and crowds are thinned too from
+   must keep its lowest HP point above a margin. Otherwise enemies are scaled down, and crowds are thinned too from
    the third repair on. The plan records `debug.difficulty_scale`.
 
 The plan also carries `zone`, `boss`, and `modifiers` for Milestone 5.

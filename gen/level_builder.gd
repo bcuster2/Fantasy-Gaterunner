@@ -14,6 +14,7 @@ const ROLE_FALLBACKS := {
 	"climax": ["pressure"],
 	"intro": ["buildup"],
 	"breather": ["intro"],
+	"finale": ["climax", "pressure"],
 }
 const ZONES := ["forest", "crypt", "volcano"]
 
@@ -83,13 +84,37 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 	events.append({"d": preboss_d, "type": "gates", "gates": GateFactory.make("preboss", ctx, rng), "cadence": gate_count + 1})
 	segments_debug.append({"id": "pre-boss gate", "role": "preboss", "start": preboss_d, "end": preboss_d})
 
+	# Every level ends on a fight, not a gate: a final wave right after the pre-boss gate tests the
+	# finished build. (Milestone 5's boss arena follows it.)
+	var finale_start := preboss_d + clear_after
+	var finale_room := float(cadence.get("finale_length", 44.0))
+	ctx["slot_density_t"] = float(ctx["density_t"])
+	ctx["slot_hp_mult"] = float(ctx["hp_mult"])
+	ctx["progress"] = 1.0
+	var finale_role := String(template.get("finale", "finale"))
+	var finale := _pick_segment(finale_role, level, db, rng, previous_id, finale_room + 4.0)
+	var last_enemy_d := finale_start
+	if not finale.is_empty():
+		var mirror_finale := bool(finale.get("mirror", true)) and rng.randf() < 0.5
+		var swap_finale := rng.randf() < 0.5
+		for src: Dictionary in finale.get("events", []):
+			if float(src.get("d", 0.0)) <= finale_room:
+				var e := _instantiate(src, finale_start, mirror_finale, swap_finale, ctx, rng)
+				events.append(e)
+				var depth := 0.0
+				for offset in Formations.offsets(e):
+					depth = maxf(depth, offset.y)
+				last_enemy_d = maxf(last_enemy_d, float(e["d"]) + depth)
+		segments_debug.append({"id": String(finale.get("id", "")), "role": finale_role, "start": finale_start, "end": finale_start + finale_room})
+	var finish_d := maxf(finale_start + finale_room, last_enemy_d + float(cadence.get("finish_after_last_enemy", 14.0)))
+
 	var plan := {
 		"id": "level_%d" % level,
 		"level": level,
 		"seed": seed_value,
 		"kind": kind,
 		"template": String(template.get("id", "")),
-		"length": preboss_d + float(cadence.get("finish_after_preboss", 40.0)),
+		"length": finish_d,
 		"events": events,
 		"palette": ctx["palette"],
 		"zone": ZONES[((level - 1) / 10) % ZONES.size()],
@@ -147,7 +172,8 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 		median_score = median_score_of(plan, hero, db, balance)
 	var estimate := Estimator.run(plan, hero, "best", db, balance)
 	var repairs := 0
-	while (not bool(estimate["survived"]) or float(estimate["hp_frac"]) < margin) and repairs < int(gen.get("max_repairs", 8)):
+	# The margin applies to the closest call during the run, not the HP left at the finish.
+	while (not bool(estimate["survived"]) or float(estimate["min_hp_frac"]) < margin) and repairs < int(gen.get("max_repairs", 8)):
 		var repair_step := float(gen.get("repair_scale", 0.88))
 		difficulty *= repair_step
 		_scale_enemies(plan, repair_step)
@@ -164,7 +190,7 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 		"fixes": fixes,
 		"difficulty_scale": difficulty,
 		"median_score": median_score_of(plan, hero, db, balance),
-		"estimate": {"survived": estimate["survived"], "hp_frac": estimate["hp_frac"], "kills": estimate["kills"], "units": estimate["units"]},
+		"estimate": {"survived": estimate["survived"], "hp_frac": estimate["hp_frac"], "min_hp_frac": estimate["min_hp_frac"], "kills": estimate["kills"], "units": estimate["units"]},
 		"density_cap": density_cap,
 		"gen_ms": (Time.get_ticks_usec() - started) / 1000.0,
 	}

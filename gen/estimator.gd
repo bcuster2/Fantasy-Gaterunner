@@ -28,6 +28,8 @@ static func run(plan: Dictionary, start: HeroStats, policy: String, db: Dictiona
 	var coins := 0.0
 	var coin_mult := float(plan.get("coin_mult", 1.0)) * float(balance.get("economy", {}).get("coin_multiplier", 1.0))
 	var choices: Array = []
+	## Lowest HP fraction reached during the run (the closest call), not just the final value.
+	var min_hp_frac := s.hp / maxf(s.max_hp, 1.0)
 	var i := 0
 	while i < events.size():
 		var event: Dictionary = events[i]
@@ -60,10 +62,11 @@ static func run(plan: Dictionary, start: HeroStats, policy: String, db: Dictiona
 		kills += int(result["kills"])
 		units += int(result["units"])
 		coins += float(result["coins"]) * coin_mult
+		min_hp_frac = minf(min_hp_frac, s.hp / maxf(s.max_hp, 1.0))
 		if s.hp <= 0.0:
-			return {"survived": false, "distance": float(event["d"]), "hp_frac": 0.0, "kills": kills, "units": units, "coins": coins, "choices": choices, "stats": s}
+			return {"survived": false, "distance": float(event["d"]), "hp_frac": 0.0, "min_hp_frac": 0.0, "kills": kills, "units": units, "coins": coins, "choices": choices, "stats": s}
 		i = j
-	return {"survived": true, "distance": float(plan.get("length", 0.0)), "hp_frac": s.hp / maxf(s.max_hp, 1.0), "kills": kills, "units": units, "coins": coins, "choices": choices, "stats": s}
+	return {"survived": true, "distance": float(plan.get("length", 0.0)), "hp_frac": s.hp / maxf(s.max_hp, 1.0), "min_hp_frac": min_hp_frac, "kills": kills, "units": units, "coins": coins, "choices": choices, "stats": s}
 
 
 ## HP-weighted element mix of enemy events after index `from`, within `horizon` meters.
@@ -124,7 +127,11 @@ static func _engage(group: Array, s: HeroStats, policy: String, db: Dictionary, 
 	var first_d := float(group[0]["d"])
 
 	# Damage output split: hero (aimed), ranged allies, melee allies (only when enemies close).
-	var hero_dps := s.dps() * float(balance.get("estimator", {}).get("hero_aim", 0.7))
+	# Extra projectiles in a volley often hit the same target (fan overlap), so they count with
+	# diminishing returns: projectiles^multishot_exponent.
+	var est_cfg: Dictionary = balance.get("estimator", {})
+	var volley := pow(float(s.projectiles), float(est_cfg.get("multishot_exponent", 1.0)))
+	var hero_dps := s.damage * s.fire_rate * volley * float(est_cfg.get("hero_aim", 0.7))
 	var ranged_dps := 0.0
 	var melee_dps := 0.0
 	var front_allies := 0

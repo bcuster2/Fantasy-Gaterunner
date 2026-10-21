@@ -1,5 +1,5 @@
 {
-	"_doc": "Pacing templates: intro = the stretch before the first gate; intervals = one enemy role for each space after a regular gate (one per gate, see generator.cadence.gate_count). Gate positions are fixed; templates only change what you fight between them. Reward levels turn a pressure interval into a breather; spike levels do the opposite.",
+	"_doc": "Pacing templates: intro = the stretch before the first gate; finale = the closing wave after the pre-boss gate (default 'finale': climax-tier segments); intervals = one enemy role for each space after a regular gate (one per gate, see generator.cadence.gate_count). Gate positions are fixed; templates only change what you fight between them. Reward levels turn a pressure interval into a breather; spike levels do the opposite.",
 	"first": {
 		"min_level": 1,
 		"max_level": 2,

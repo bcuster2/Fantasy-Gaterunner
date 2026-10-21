@@ -6,6 +6,7 @@ extends RefCounted
 ##  2. Every element-locked wall has an earlier gate set (the last one before it, within
 ##     wall_lookback meters) that offers the wall's weakness element.
 ##  3. Enemy density inside any window never exceeds the readability cap for the level.
+##  4. Every level ends with an enemy wave (never on a gate).
 ## Winnability (an expected-upgrade hero survives the best gate path) is enforced by LevelBuilder.
 
 const SAFE := ["good", "element", "summon"]
@@ -122,6 +123,8 @@ static func shrink_event(event: Dictionary) -> bool:
 static func validate(plan: Dictionary, ctx: Dictionary, enemies_db: Dictionary, window: float, cap: float, lookback: float) -> Array[String]:
 	var problems: Array[String] = []
 	var events: Array = plan["events"]
+	if events.is_empty() or String(events[-1].get("type", "")) != "enemies":
+		problems.append("level does not end with an enemy wave")
 	var last_gates: Dictionary = {}
 	for event: Dictionary in events:
 		match String(event.get("type", "")):

@@ -32,7 +32,8 @@ godot --headless --path . --fixed-fps 60 res://tools/calibrate.tscn -- --levels=
 ## Design rule: fixed gate cadence, unplannable builds
 
 Every level has the same build rhythm: a 40 m intro, then **6 gates exactly 58 m apart**, then a
-pre-boss gate and the finish (442 m, ~55 s). Players always know when the next choice is coming.
+pre-boss gate, then a **final enemy wave** (climax-tier) and the finish (458 m, ~57 s). Levels always
+end on a fight, never on a gate. Players always know when the next choice is coming.
 What is offered is never planned: every gate rolls its contents (stat, element, summon, curse, heal,
 or harmful) from `gates.json`, so builds come from adapting to the choices that turn up and each
 level plays differently. Pacing templates only decide what you fight between gates.
@@ -52,10 +53,32 @@ level plays differently. Pacing templates only decide what you fight between gat
    spike multiplier) mostly toughens the back half, where gate-built power lives. The opening gets
    only `factor^0.25` (`upscale_opening_weight`). Onboarding aims higher for the first 20 levels, and
    through level 15 the median path must finish.
-4. **Guarantee.** The best path must survive with HP to spare (15%, or 5% on spike/boss levels).
+4. **Guarantee.** The best path's *lowest* HP point during the run must stay above a margin (15%,
+   or 12% on spike/boss levels). Checking only final HP missed runs that recover through max-HP gates.
    Otherwise enemies are scaled down, and crowds are thinned after the second round.
 
-## Pass 2: fixed gate cadence (current)
+## Pass 2b: final enemy wave (current)
+
+Each level now ends with a climax-tier wave after the pre-boss gate (`generator.cadence.finale_length`).
+Fairness rule 4: every level ends with an enemy wave. Calibration found two estimator gaps, now fixed:
+
+- Multishot volleys overlap on targets: projectile count counts as `projectiles^0.85`
+  (`estimator.multishot_exponent`).
+- The winnability margin now uses the closest call (lowest HP), not the HP left at the finish.
+- Spike/boss margin 5% -> 12%; `max_upscale` 1.6 -> 1.5.
+
+| Kind | Levels | Mean casual win | Std dev |
+|---|---|---|---|
+| normal | 344 | 80% | 0.19 |
+| spike | 49 | 68% | 0.23 |
+| boss (run part) | 50 | 80% | 0.19 |
+| reward | 57 | 95% | 0.09 |
+
+Levels 1-25 all >= 68% casual wins. Coins per level rose ~25% from the extra kills (~6.2k by level 50,
+~333k by 500). **Calibration:** 52/52 sampled levels won live, and the estimator agreed on every outcome
+(live runs end with ~11% more HP than predicted). Generation: ~4.3 ms average, p99 7.8 ms, max ~12 ms.
+
+## Pass 2: fixed gate cadence
 
 Every level now has 7 gates (6 + pre-boss) instead of 3-6, so players end runs much stronger. Changes:
 
