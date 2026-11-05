@@ -151,6 +151,7 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 	# Boss: its HP comes from the build a median player leaves the level with, so fights last about
 	# hp_seconds whatever the level number.
 	var hero := expected_hero(level, db, balance)
+	var build_growth := _scale_to_build(plan, hero, db, balance)
 	var boss_event := make_boss_event(plan, level, kind, zone_id, ctx, hero, db, balance)
 	plan["events"].append(boss_event)
 	plan["boss"] = {"id": boss_event["boss"], "tier": boss_event["tier"], "element": boss_event["element"], "hp": boss_event["hp"]}
@@ -188,6 +189,19 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 		_scale_enemies(plan, step, float(gen.get("upscale_opening_weight", 0.25)) if step > 1.0 else 1.0)
 		median_score = median_score_of(plan, hero, db, balance)
 	var estimate := Estimator.run(plan, hero, "best", db, balance)
+	# Strong picks must still feel pressure: while the best path never drops below the cap for this
+	# kind of level, push harder (as long as the median path still gets a fair way in).
+	var caps: Dictionary = gen.get("best_min_hp_cap", {})
+	if caps.has(kind) and level > int(gen.get("onboarding_survive_levels", 3)):
+		var cap := float(caps[kind]) + float(gen.get("onboarding_shift", 0.35)) * onboarding
+		for push in int(gen.get("max_push_steps", 6)):
+			if float(estimate["min_hp_frac"]) <= cap or difficulty >= max_up or median_score < float(gen.get("median_score_floor", 0.25)):
+				break
+			var step := minf(float(gen.get("tune_up", 1.1)), max_up / difficulty)
+			difficulty *= step
+			_scale_enemies(plan, step, float(gen.get("upscale_opening_weight", 0.25)))
+			median_score = median_score_of(plan, hero, db, balance)
+			estimate = Estimator.run(plan, hero, "best", db, balance)
 	var repairs := 0
 	# The margin applies to the closest call during the run, not the HP left at the finish.
 	while (not bool(estimate["survived"]) or float(estimate["min_hp_frac"]) < margin) and repairs < int(gen.get("max_repairs", 8)):
@@ -209,6 +223,7 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 		"median_score": median_score_of(plan, hero, db, balance),
 		"estimate": {"survived": estimate["survived"], "hp_frac": estimate["hp_frac"], "min_hp_frac": estimate["min_hp_frac"], "kills": estimate["kills"], "units": estimate["units"]},
 		"density_cap": density_cap,
+		"build_growth": build_growth,
 		"gen_ms": (Time.get_ticks_usec() - started) / 1000.0,
 	}
 	return plan
@@ -436,6 +451,49 @@ static func _opening_weighted(factor: float, progress: float, opening_weight: fl
 	if factor <= 1.0:
 		return factor
 	return pow(factor, lerpf(opening_weight, 1.0, clampf(progress * 2.0, 0.0, 1.0)))
+
+
+## In-level build growth: gates multiply the hero's power many times over within one level, so each
+## wave's HP follows a reference build (geometric mean of the best and median gate paths) as it grows,
+## raised to build_hp_exponent. Weak picks fall behind the curve, strong ones stay a step ahead.
+## Returns the reference build's growth at the last wave.
+static func _scale_to_build(plan: Dictionary, hero: HeroStats, db: Dictionary, balance: Dictionary) -> float:
+	var gen: Dictionary = balance.get("generator", {})
+	var exponent := float(gen.get("build_hp_exponent", 0.0))
+	if exponent <= 0.0:
+		return 1.0
+	var limits: Dictionary = balance.get("combat", {})
+	var paths: Array = []
+	var builds: Array[HeroStats] = []
+	for policy in ["best", "median"]:
+		paths.append(Estimator.run(plan, hero, policy, db, balance)["choices"])
+		builds.append(hero.copy())
+	var base := _reference_dps(builds, db, balance)
+	var cap := float(gen.get("build_hp_max", 12.0))
+	var gate_index := 0
+	var growth := 1.0
+	for event: Dictionary in plan["events"]:
+		match String(event.get("type", "")):
+			"gates":
+				var gates: Array = event.get("gates", [])
+				if gates.is_empty():
+					continue
+				for p in builds.size():
+					var choices: Array = paths[p]
+					if gate_index < choices.size():
+						builds[p].apply_gate(gates[int(choices[gate_index])], limits)
+				gate_index += 1
+			"enemies":
+				growth = clampf(_reference_dps(builds, db, balance) / maxf(base, 0.001), 1.0, cap)
+				event["hp_mult"] = float(event["hp_mult"]) * pow(growth, exponent)
+	return growth
+
+
+static func _reference_dps(builds: Array[HeroStats], db: Dictionary, balance: Dictionary) -> float:
+	var product := 1.0
+	for b in builds:
+		product *= maxf(Estimator.effective_dps(b, db, balance), 0.001)
+	return pow(product, 1.0 / builds.size())
 
 
 ## Scales enemy HP/damage; with opening_weight < 1 increases mostly hit the back half.

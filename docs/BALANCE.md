@@ -46,13 +46,20 @@ level plays differently. Pacing templates only decide what you fight between gat
 2. **In-level ramp.** Every run starts with a fresh hero, so early segments use 20% of the level's
    extra density and 75% of its HP, reaching 100% by 60% of the level
    (`generator.density_ramp_start / hp_ramp_start / ramp_full_at`).
+   **Build ramp:** on top of that, each wave's HP follows the growth of a reference build up to that
+   point, raised to `build_hp_exponent` (0.6, capped at `build_hp_max`). The reference build is the
+   geometric mean of the best and median gate paths. Gates can multiply power 50-80× within one
+   level, so without this the back half was harmless to any decent build. Weak picks fall behind
+   the curve. Strong picks stay ahead without trivializing the level.
 3. **Targeting.** The generator nudges each level's enemy HP/damage (×0.9 down, ×1.1 up, max ×1.6) until
    the median-path score lands in `generator.target_median_score[kind]`. Score = distance fraction
    reached if the median path dies, or 1 + remaining HP fraction if it survives. This evens out
    segment and gate luck and keeps the rhythm readable. Making a level harder (targeting up, or the
    spike multiplier) mostly toughens the back half, where gate-built power lives. The opening gets
-   only `factor^0.25` (`upscale_opening_weight`). Onboarding aims higher for the first 20 levels, and
-   through level 15 the median path must finish.
+   only `factor^0.25` (`upscale_opening_weight`). Onboarding aims higher for the first 10 levels, and
+   through level 3 the median path must finish. **Pressure:** if the best path's lowest HP point stays
+   above `best_min_hp_cap[kind]` (normal 85%), the level is pushed harder while the median score
+   stays above `median_score_floor`.
 4. **Guarantee.** The best path's *lowest* HP point during the run must stay above a margin (15%,
    or 12% on spike/boss levels). Checking only final HP missed runs that recover through max-HP gates.
    Otherwise enemies are scaled down, and crowds are thinned after the second round.
@@ -225,3 +232,29 @@ curves match the expected player.
   level 50, ~33k by 150, ~292k by 500 (before coin upgrades).
 - Generation is 3 ms average and 6.5 ms max on desktop. Profile on a mid-range phone in Milestone 10:
   budget 50 ms, and `generator.max_tune_steps` is the lever if needed.
+
+## Pass 5: difficulty (after playtest: "too easy, couldn't lose")
+- **Cause:** a good gate path snowballed to 50-80× its opening DPS within a level while wave HP
+  ramped only about 1.8×. Live autopilot runs finished levels 2-16 at full HP. Onboarding then kept
+  levels 1-20 extra soft.
+- **Fixes:**
+  - Build-relative wave HP (`build_hp_exponent` 0.6).
+  - Best-path pressure cap (`best_min_hp_cap`).
+  - Onboarding reduced to 10 levels, with the median path required to finish only through level 3.
+  - Frenzy now costs 20% HP and gives ×1.75 fire rate. It was free with no allies.
+  - Low-HP danger in the gate score raised to 45% of max HP, so greedy paths stop stacking HP
+    curses into a 1-HP boss fight.
+- **Result** (simulator, casual win rate):
+
+| Levels | Casual win |
+|---|---|
+| 1-3 | 100% |
+| 4-10 | 88% |
+| 11-20 | 67% |
+| 21-40 | 70% |
+| 41-100 | ~77% |
+
+  By kind: normal 75%, spike 70%, boss 77%, reward 84%. Even the best path now ends levels with
+  about 60% HP.
+- **Calibration:** est-live HP bias is now -0.04, from -0.12 to -0.30. Level 8 live: 0.38-0.85 HP,
+  was 1.00.

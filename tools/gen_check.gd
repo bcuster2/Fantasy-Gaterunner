@@ -48,6 +48,7 @@ func _ready() -> void:
 		var est: Dictionary = dbg["estimate"]
 		if not bool(est["survived"]):
 			est_losses += 1
+			print("[gen_check] best path still loses on level %d after repairs" % level)
 		if float(dbg["difficulty_scale"]) < 0.999:
 			repaired_levels += 1
 		kinds[plan["kind"]] = int(kinds.get(plan["kind"], 0)) + 1

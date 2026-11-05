@@ -30,7 +30,7 @@
 		"max_allies": 12,
 		"min_hp_after_curse": 1.0,
 		"casual_best_chance": 0.65,
-		"low_hp_danger_frac": 0.3
+		"low_hp_danger_frac": 0.45
 	},
 	"enemy": {
 		"aggro_range": 24.0,
@@ -156,7 +156,7 @@
 		"spike_min_level": 10
 	},
 	"generator": {
-		"_doc": "Generator, fairness and difficulty targeting. target_median_score: band for the median-path score (distance fraction if it dies, else 1 + HP left) per level kind; onboarding raises it for the first levels.",
+		"_doc": "Generator, fairness and difficulty targeting. target_median_score: band for the median-path score (distance fraction if it dies, else 1 + HP left) per level kind; onboarding raises it for the first levels. best_min_hp_cap: the best path's lowest HP point must dip to this (else the level is pushed harder while the median score stays above median_score_floor).",
 		"element_unlock_level": 3,
 		"palette_size": 2,
 		"element_chance": 0.75,
@@ -170,29 +170,39 @@
 		"density_ramp_start": 0.2,
 		"hp_ramp_start": 0.75,
 		"ramp_full_at": 0.6,
-		"max_upscale": 1.5,
-		"max_tune_steps": 6,
+		"max_upscale": 2.0,
+		"max_tune_steps": 8,
 		"tune_down": 0.9,
 		"tune_up": 1.1,
 		"target_median_score": {
 			"normal": [
-				0.7,
-				1.0
+				0.62,
+				0.95
 			],
 			"spike": [
-				0.42,
-				0.75
+				0.52,
+				0.85
 			],
 			"boss": [
-				0.7,
-				1.0
+				0.72,
+				1.05
 			],
 			"reward": [
-				0.95,
-				1.4
+				0.9,
+				1.3
 			]
 		},
-		"onboarding_levels": 20,
+		"best_min_hp_cap": {
+			"normal": 0.85,
+			"spike": 0.75,
+			"boss": 0.8,
+			"reward": 0.95
+		},
+		"median_score_floor": 0.38,
+		"build_hp_exponent": 0.6,
+		"build_hp_max": 12.0,
+		"max_push_steps": 6,
+		"onboarding_levels": 10,
 		"onboarding_shift": 0.35,
 		"cadence": {
 			"_doc": "Every level has the same build rhythm: an intro stretch, gate_count gates exactly interval meters apart (enemy segments fill the space between them), a pre-boss gate, then a final enemy wave (finale) before the finish. Gate contents are always random.",
@@ -205,7 +215,7 @@
 			"finish_after_last_enemy": 14.0
 		},
 		"upscale_opening_weight": 0.25,
-		"onboarding_survive_levels": 15
+		"onboarding_survive_levels": 3
 	},
 	"estimator": {
 		"_doc": "Analytic run model used for fairness checks and the simulator. Calibrate against live autopilot runs.",

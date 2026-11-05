@@ -184,9 +184,14 @@
 					"value": -50
 				},
 				{
+					"stat": "hp_pct",
+					"op": "add",
+					"value": -20
+				},
+				{
 					"stat": "fire_rate",
 					"op": "mul",
-					"value": 2
+					"value": 1.75
 				}
 			],
 			"weight": 1.5,
