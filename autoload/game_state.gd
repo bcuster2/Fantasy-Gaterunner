@@ -10,6 +10,8 @@ const SCREENS := {
 	"map": "res://ui/screens/level_map.tscn",
 	"shop": "res://ui/screens/shop.tscn",
 	"settings": "res://ui/screens/settings.tscn",
+	"endless": "res://ui/screens/endless.tscn",
+	"daily": "res://ui/screens/daily.tscn",
 	"run": "res://core/run/run.tscn",
 }
 
@@ -50,6 +52,8 @@ func _ready() -> void:
 			open_debug_menu = true
 		elif arg == "--god":
 			god_mode = true
+		elif arg.begins_with("--mode="):
+			mode = arg.get_slice("=", 1)
 		elif arg.begins_with("--level="):
 			level = int(arg.get_slice("=", 1))
 		elif arg.begins_with("--start="):
@@ -68,6 +72,12 @@ func go(screen: String) -> void:
 func play_level(level_number: int) -> void:
 	mode = "campaign"
 	level = level_number
+	seed_override = -1
+	go("run")
+
+
+func play_mode(mode_name: String) -> void:
+	mode = mode_name
 	seed_override = -1
 	go("run")
 

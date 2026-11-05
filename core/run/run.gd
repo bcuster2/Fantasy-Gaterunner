@@ -4,6 +4,8 @@ extends Node3D
 ## Every point of damage to an enemy goes through _damage_enemy() so element rules apply uniformly.
 ## Levels with a boss end in an arena: the hero stops at the arena line, the boss fights from its dais,
 ## and the run is won when the boss falls.
+## Modes (GameState.mode): "campaign" (numbered level), "daily" (date-seeded, fixed modifiers, expected
+## hero), "endless" (EndlessDirector feeds generated chunks forever; bosses don't end the run).
 
 enum State { RUNNING, DEAD, WON }
 
@@ -60,12 +62,32 @@ var _tutorial_step := 0
 ## The next tutorial tip waits until this time so tips never cover each other.
 var _tutorial_hold := 0.0
 var _tutorial_gate_z := 0.0
+# Endless mode.
+var _endless: EndlessDirector = null
+var _chunks: Array[Dictionary] = []
+var _active_chunk := -1
+var _bosses_defeated := 0
+var _title_timer := 0.0
+var _daily_date := ""
+var _env: Environment
+var _sun: DirectionalLight3D
 
 
 func _ready() -> void:
 	Engine.time_scale = 1.0
 	get_tree().paused = false
-	plan = LevelGenerator.get_plan(GameState.level, GameState.seed_override)
+	match GameState.mode:
+		"endless":
+			var cfg := Balance.section("endless")
+			_endless = EndlessDirector.new(randi(), EndlessDirector.start_tier_for(SaveManager.unlocked_level(), cfg), cfg)
+			plan = _endless.next_chunk(Content.db, Balance.data)
+		"daily":
+			_daily_date = LevelGenerator.today_utc()
+			plan = LevelGenerator.get_daily_plan(_daily_date)
+			if not GameState.autopilot:
+				SaveManager.start_daily_attempt(_daily_date)
+		_:
+			plan = LevelGenerator.get_plan(GameState.level, GameState.seed_override)
 	_events = plan["events"]
 	_length = float(plan["length"])
 	_track_width = Balance.f("track.width")
@@ -84,8 +106,12 @@ func _ready() -> void:
 				_summon_hp_mult = float(event.get("hp_mult", 1.0))
 				_summon_dmg_mult = float(event.get("dmg_mult", 1.0))
 	_build_environment()
-	var arena_d := float(_boss_event["d"]) if not _boss_event.is_empty() else -1.0
-	TrackBuilder.build(self, _length + (40.0 if arena_d >= 0.0 else 0.0), _track_width * 0.5, int(plan.get("seed", 1)), _zone, arena_d)
+	if _endless:
+		_boss_event = {} # endless bosses are picked up as their chunks spawn
+		_add_chunk_world(plan)
+	else:
+		var arena_d := float(_boss_event["d"]) if not _boss_event.is_empty() else -1.0
+		TrackBuilder.build(self, _length + (40.0 if arena_d >= 0.0 else 0.0), _track_width * 0.5, int(plan.get("seed", 1)), _zone, arena_d)
 
 	hero = Hero.new()
 	hero.name = "Hero"
@@ -95,13 +121,14 @@ func _ready() -> void:
 	if skin.has("robe"):
 		class_def["color"] = skin["robe"]
 	hero.setup(class_def)
-	if GameState.assume_upgrades:
+	var perk_defs: Dictionary = Content.milestones.get("perks", {})
+	_coin_bonus = Economy.coin_multiplier(Content.upgrades, SaveManager.upgrade_levels(), perk_defs, SaveManager.perks())
+	if GameState.assume_upgrades or GameState.mode == "daily":
+		# The daily challenge is the same for everyone: the generator's expected hero, not the shop.
 		LevelBuilder.apply_level_scaling(hero.stats, float(plan.get("hero_power", 1.0)), float(plan.get("hero_hp_power", 1.0)))
 	else:
 		# Real progression: shop upgrades and milestone perks.
-		var perk_defs: Dictionary = Content.milestones.get("perks", {})
 		_combat = Economy.apply_to_hero(hero.stats, _combat, Content.upgrades, SaveManager.upgrade_levels(), perk_defs, SaveManager.perks())
-		_coin_bonus = Economy.coin_multiplier(Content.upgrades, SaveManager.upgrade_levels(), perk_defs, SaveManager.perks())
 	hero.stats.ally_power = float(plan.get("ally_power", 1.0))
 	hero.refresh_hp()
 	hero.died.connect(_on_hero_died)
@@ -147,7 +174,7 @@ func _ready() -> void:
 	add_child(hud)
 	hud.restart_requested.connect(_restart)
 	hud.next_requested.connect(_next_level)
-	hud.menu_requested.connect(func() -> void: GameState.go("map"))
+	hud.menu_requested.connect(func() -> void: GameState.go(_menu_screen()))
 	hud.set_level_title(_level_title())
 	hero.hp_changed.connect(hud.set_hp)
 	hud.set_hp(hero.stats.hp, hero.stats.max_hp)
@@ -162,7 +189,12 @@ func _ready() -> void:
 		modifier_lines.append("%s: %s" % [def.get("name", mod), def.get("desc", "")])
 	hud.set_modifiers(modifier_names)
 	if int(plan.get("level", 0)) > 0:
-		hud.show_banner(_level_title(), String(_zone.get("name", "")) + ("\n" + "\n".join(modifier_lines) if not modifier_lines.is_empty() else ""))
+		var subtitle := String(_zone.get("name", ""))
+		if _endless:
+			subtitle = "Survive as long as you can.\nA boss every few minutes."
+		elif GameState.mode == "daily":
+			subtitle = "Today's challenge  ·  " + _daily_date
+		hud.show_banner(_banner_title(), subtitle + ("\n" + "\n".join(modifier_lines) if not modifier_lines.is_empty() else ""))
 	_tutorial = GameState.mode == "campaign" and int(plan.get("level", 0)) == 1 and not bool(SaveManager.data.get("tutorial_done", false)) and not GameState.autopilot
 	if GameState.start_distance != 0.0:
 		var skip := GameState.start_distance
@@ -230,10 +262,12 @@ func _process(delta: float) -> void:
 
 	numbers.tick(delta)
 	camera.follow(hero.position, delta)
-	hud.set_progress(distance / _length)
-
-	if state == State.RUNNING and _boss_event.is_empty() and distance >= _length:
-		_win()
+	if _endless:
+		_tick_endless(delta, distance)
+	else:
+		hud.set_progress(distance / _length)
+		if state == State.RUNNING and _boss_event.is_empty() and distance >= _length:
+			_win()
 
 
 # --- Spawning ---------------------------------------------------------------------------------
@@ -630,6 +664,14 @@ func _finish_run(won: bool) -> void:
 	if _ended:
 		return
 	_ended = true
+	AdManager.on_run_completed()
+	match GameState.mode:
+		"endless":
+			_finish_endless()
+			return
+		"daily":
+			_finish_daily(won)
+			return
 	var level := int(plan.get("level", 0))
 	var payout := Economy.run_payout(coins, won, level, Balance.data, _coin_bonus)
 	var reward := {}
@@ -664,7 +706,29 @@ func _next_level() -> void:
 	_restart()
 
 
+## Where "menu"/quit buttons lead for the current mode.
+func _menu_screen() -> String:
+	match GameState.mode:
+		"endless":
+			return "endless"
+		"daily":
+			return "daily"
+	return "map"
+
+
+func _banner_title() -> String:
+	if _endless:
+		return "ENDLESS"
+	if GameState.mode == "daily":
+		return "DAILY CHALLENGE"
+	return _level_title()
+
+
 func _level_title() -> String:
+	if _endless:
+		return "ENDLESS  ·  %dm  ·  SCORE %d" % [int(-hero.position.z) if hero else 0, _endless_score()]
+	if GameState.mode == "daily":
+		return "DAILY  ·  " + _daily_date
 	var level := int(plan.get("level", 0))
 	if level <= 0:
 		return "TEST LEVEL"
@@ -744,6 +808,7 @@ func _build_environment() -> void:
 	var world_env := WorldEnvironment.new()
 	world_env.environment = env
 	add_child(world_env)
+	_env = env
 
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-52, -35, 0)
@@ -751,6 +816,152 @@ func _build_environment() -> void:
 	sun.light_color = ZoneTheme.color(_zone, "sun", Color("#FFF2DC"))
 	sun.shadow_enabled = false
 	add_child(sun)
+	_sun = sun
+
+
+# --- Endless ----------------------------------------------------------------------------------
+
+## Builds a chunk's track (exactly its own distance range, so neighbours never overlap) and its
+## arena if it ends in a boss. The chunk keeps its world root so it can be freed once passed.
+func _add_chunk_world(chunk: Dictionary) -> void:
+	var root := Node3D.new()
+	root.name = "Chunk%d" % int(chunk["index"])
+	add_child(root)
+	var zone := ZoneTheme.resolve(Content.zones, String(chunk.get("zone", "forest")), int(chunk.get("zone_cycle", 0)))
+	var boss_event: Dictionary = chunk.get("boss_event", {})
+	var from_d := float(chunk["start"]) - (40.0 if int(chunk["index"]) == 0 else 0.0)
+	var to_d := float(chunk["end"]) + (8.0 if not boss_event.is_empty() else 0.0)
+	TrackBuilder.build_range(root, from_d, to_d, _track_width * 0.5, int(chunk.get("seed", 1)), zone)
+	if not boss_event.is_empty():
+		TrackBuilder.build_arena(root, float(boss_event["d"]), _track_width * 0.5, zone)
+	var entry := chunk.duplicate()
+	entry.erase("events")
+	entry["root"] = root
+	entry["zone_theme"] = zone
+	_chunks.append(entry)
+
+
+func _tick_endless(delta: float, distance: float) -> void:
+	var cfg := Balance.section("endless")
+	var last: Dictionary = _chunks[-1]
+	# Generate the next chunk well before the current one runs out.
+	if distance + float(cfg.get("generate_ahead", 160.0)) > float(last["end"]):
+		var chunk := _endless.next_chunk(Content.db, Balance.data, hero.stats)
+		_events.append_array(chunk["events"])
+		_add_chunk_world(chunk)
+	# Entering a new chunk: switch zone look, ally power, and summon scaling.
+	for k in _chunks.size():
+		var c := _chunks[k]
+		if k > _active_chunk and distance >= float(c["start"]):
+			_active_chunk = k
+			plan["coin_mult"] = c.get("coin_mult", 1.0)
+			hero.stats.ally_power = float(c.get("ally_power", 1.0))
+			_apply_zone(c["zone_theme"])
+			if GameState.autopilot:
+				print("[endless] chunk %d tier %d at %dm  t=%.0fs  hp %d/%d  kills %d  bosses %d  pressure %s  nodes %d" % [
+					int(c["index"]), int(c.get("tier", 1)), int(distance), _elapsed, int(hero.stats.hp), int(hero.stats.max_hp),
+					kills, _bosses_defeated, c.get("pressure", {}), get_tree().get_node_count()])
+			if k > 0:
+				hud.show_banner("TIER %d" % int(c.get("tier", 1)), String((c["zone_theme"] as Dictionary).get("name", "")), Color("#FFD166"), 1.2)
+	# Free worlds far behind the hero.
+	while _chunks.size() > 1 and distance - float(_chunks[0]["end"]) > float(cfg.get("cleanup_behind", 120.0)):
+		(_chunks[0]["root"] as Node).queue_free()
+		_chunks.remove_at(0)
+		_active_chunk -= 1
+	# Consumed events are dropped so the list stays small however long the run lasts.
+	if _next_event > 200:
+		_events = _events.slice(_next_event)
+		_next_event = 0
+	for k in range(_next_event, mini(_next_event + 8, _events.size())):
+		if String(_events[k].get("type", "")) == "enemies":
+			_summon_hp_mult = float(_events[k].get("hp_mult", 1.0))
+			_summon_dmg_mult = float(_events[k].get("dmg_mult", 1.0))
+			break
+	var current := _chunks[clampi(_active_chunk, 0, _chunks.size() - 1)]
+	hud.set_progress((distance - float(current["start"])) / maxf(float(current["end"]) - float(current["start"]), 1.0))
+	_title_timer -= delta
+	if _title_timer <= 0.0:
+		_title_timer = 0.5
+		hud.set_level_title(_level_title())
+
+
+func _endless_score() -> int:
+	return int(maxf(0.0, -hero.position.z)) + kills if hero else 0
+
+
+func _apply_zone(zone: Dictionary) -> void:
+	_zone = zone
+	if _env:
+		_env.background_color = ZoneTheme.color(zone, "sky", Color("#9DCBEA"))
+		_env.ambient_light_color = ZoneTheme.color(zone, "ambient", Color("#C4D3EA"))
+		_env.fog_light_color = ZoneTheme.color(zone, "fog", Color("#A9CFEA"))
+		_env.fog_density = float(zone.get("fog_density", 0.008))
+	if _sun:
+		_sun.light_color = ZoneTheme.color(zone, "sun", Color("#FFF2DC"))
+		_sun.light_energy = float(zone.get("sun_energy", 1.15))
+
+
+## Endless: a boss falling is a checkpoint, not the end. Clear the arena and run on.
+func _resume_after_boss() -> void:
+	if arena:
+		arena.queue_free()
+		arena = null
+	if boss:
+		boss.queue_free()
+		boss = null
+	_boss_event = {}
+	_in_arena = false
+	hud.hide_boss()
+	hud.show_banner("BOSS DEFEATED!", "The road goes on...", Color("#FFD166"), 1.4)
+	hero.set_running(true, 0.8)
+
+
+func _finish_endless() -> void:
+	var distance := -hero.position.z
+	var score := _endless_score()
+	var tier := int(_chunks[clampi(_active_chunk, 0, _chunks.size() - 1)].get("tier", 1)) if not _chunks.is_empty() else 1
+	var payout := Economy.run_payout(coins, false, tier, Balance.data, _coin_bonus)
+	var best := false
+	if not GameState.autopilot and not GameState.fast_results:
+		best = SaveManager.record_endless(score, distance, int(payout["total"]), kills, _elapsed)
+	var high: int = int(SaveManager.data["high_scores"]["endless_score"])
+	var lines: PackedStringArray = [
+		"SCORE  %d%s" % [score, "   NEW BEST!" if best else ""],
+		"Best  %d" % high,
+		"",
+		"Distance  %dm     Kills  %d" % [int(distance), kills],
+		"Bosses defeated  %d     Tier reached  %d" % [_bosses_defeated, tier],
+		"",
+		"Coins  +%d" % int(payout["total"]),
+	]
+	hud.show_result(false, "\n".join(lines), [
+		["PLAY AGAIN", _restart],
+		["BACK", func() -> void: GameState.go("endless")],
+	], "NEW BEST!" if best else "RUN OVER")
+
+
+func _finish_daily(won: bool) -> void:
+	var distance := -hero.position.z
+	var score := int(distance) + kills
+	var payout := Economy.run_payout(coins, won, int(plan.get("level", 1)), Balance.data, _coin_bonus)
+	var bonus := 0
+	if won:
+		var cfg := Balance.section("daily")
+		bonus = int(roundf(float(cfg.get("bonus_base", 400)) * Curves.named(Balance.data, "coin_multiplier", SaveManager.unlocked_level())))
+	var total := int(payout["total"]) + bonus
+	if not GameState.autopilot and not GameState.fast_results:
+		SaveManager.record_daily_result(_daily_date, won, score, total, kills, _elapsed)
+	var lines: PackedStringArray = [_summary(), "", "Score  %d" % score, "Coins  +%d" % int(payout["total"])]
+	if bonus > 0:
+		lines.append("Daily bonus  +%d" % bonus)
+	var buttons: Array = []
+	if not won and SaveManager.daily_can_retry(_daily_date):
+		buttons.append(["RETRY  (WATCH AD)", func() -> void:
+			AdManager.show_rewarded("daily_retry", func() -> void:
+				SaveManager.grant_daily_retry(_daily_date)
+				GameState.go("run"))])
+	buttons.append(["BACK", func() -> void: GameState.go("daily")])
+	hud.show_result(won, "\n".join(lines), buttons, "DAILY CLEARED!" if won else "")
 
 
 # --- Boss -------------------------------------------------------------------------------------
@@ -760,6 +971,7 @@ func _spawn_boss(event: Dictionary) -> void:
 	if def.is_empty():
 		return
 	var distance := float(_boss_cfg.get("distance", 20.0))
+	_boss_event = event
 	boss = Boss.new()
 	boss.name = "Boss"
 	add_child(boss)
@@ -843,7 +1055,11 @@ func _on_boss_defeated() -> void:
 	coins += int(roundf(float(boss.def.get("coins", 10)) * float(plan.get("coin_mult", 1.0))))
 	hud.set_coins(coins)
 	AudioManager.play("kill", 0.0, 0.0)
-	_win()
+	_bosses_defeated += 1
+	if _endless:
+		_resume_after_boss()
+	else:
+		_win()
 
 
 func _on_arena_hero_hit(damage: float, at: Vector3) -> void:

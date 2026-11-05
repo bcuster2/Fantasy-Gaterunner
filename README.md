@@ -4,7 +4,7 @@ A portrait, one-thumb fantasy gate runner for Android (iOS-ready), built in **Go
 The hero auto-runs, you drag to steer, gates rewrite your build, and every level ends in a boss.
 Levels are procedurally generated from data. Level N is the same for every player.
 
-> Status: **Milestone 6: economy, shop, saves, UI, tutorial** (coins, five upgrades with soft caps, milestone rewards, versioned saves, all menus, endless level map, first-run tutorial). Milestones 1-5 are done.
+> Status: **Milestone 7: endless mode and daily challenge**. Milestones 1-6 are done.
 
 ## Running
 
@@ -16,7 +16,7 @@ Levels are procedurally generated from data. Level N is the same for every playe
    grant coins, generator overlay, and stats for the current plan. Level 0 is the hand-made test level.
 
 Command-line flags go after `--`: `--level=N`, `--seed=S`, `--start=M` (start M meters in; `-1` = just before
-the boss), `--autopilot`, `--overlay`, `--god`, `--open-debug`, `--save-dir=user://somewhere` (use a separate
+the boss), `--autopilot`, `--overlay`, `--god`, `--open-debug`, `--mode=campaign|endless|daily`, `--save-dir=user://somewhere` (use a separate
 save, e.g. for screenshots). The dev menu also has **SKIP TO BOSS**. To jump straight into a level, run the
 run scene directly: `godot --path . res://core/run/run.tscn -- --level=57`. Autopilot and tool runs never
 write to the player's save.
@@ -27,7 +27,8 @@ godot --headless --path . res://core/run/run.tscn --fixed-fps 60 --quit-after 90
 ```
 
 ```bash
-# save system tests (isolated folder): fresh start, round trip, corrupt -> backup -> defaults, merge, migration
+# save system tests (isolated folder): fresh start, round trip, corrupt -> backup -> defaults, merge,
+# migration, milestones, daily attempts/retry/reset, daily determinism, endless high scores
 godot --headless --path . res://tools/save_test.tscn
 ```
 
@@ -61,8 +62,10 @@ autoload/        Global singletons (registered in project.godot)
   audio_manager.gd AudioManager: pooled SFX players, mute buses (SFX synthesized until M8)
   level_generator.gd LevelGenerator: produces LevelPlans
   save_manager.gd  SaveManager: versioned, atomic, corruption-safe save (coins, progress, upgrades...)
+  ad_manager.gd    AdManager: single entry point for ads (stub until Milestone 9; dev builds simulate rewards)
 core/
-  run/             Run scene (world, pools, update order, boss arena flow), TrackBuilder, ZoneTheme
+  run/             Run scene (world, pools, update order, boss arena flow, modes), TrackBuilder,
+                   ZoneTheme, EndlessDirector (chunked endless runs)
   hero/            Hero node + HeroStats (pure build state: stats, element, ally counts)
   enemy/           Pooled Enemy node (behaviors: walker, charger, ranged, weaver, static)
   ally/            Ally node + Squad (formation, pooling, attack decisions)
@@ -101,7 +104,7 @@ data/              All content and tuning as JSON
   segments/        Segment library; every JSON file here joins the pool
   levels/          Hand-made levels (test level = level 0)
 ui/                HUD, shared theme, dev menu
-  screens/         Main menu, mode select, endless level map, shop, settings (built in code)
+  screens/         Main menu, mode select, level map, shop, settings, endless and daily lobbies
 tools/             Headless tools (simulator arrives in M4)
 ```
 
@@ -275,6 +278,24 @@ changing anything:
 3. Run `tools/calibrate.tscn` occasionally to confirm the estimator still matches real playthroughs.
 
 See [docs/BALANCE.md](docs/BALANCE.md) for the targets and the pass-1 results.
+
+## Game modes
+
+- **Campaign:** numbered levels 1 → ∞ from the level map.
+- **Endless** (`EndlessDirector`): one run stitched from generated levels ("chunks").
+  - It starts at tier = half your unlocked campaign level, and each chunk is +2 tiers.
+  - Every 3rd chunk keeps its boss (about every 3 minutes); beating it clears the road and the run goes on.
+  - Builds carry over between chunks, so each chunk's enemies scale with the hero's actual DPS/HP vs.
+    what a normal level at that tier builds to. A build keeps at most 2.5× of advantage
+    (`endless.max_edge`), and HP/damage also grow ×1.2/×1.16 per chunk, so every run ends.
+  - Score = meters + kills, with a local best score and longest run. Shop upgrades apply and coins
+    are kept. The world is built chunk by chunk and freed behind you, so memory stays flat.
+  - A near-perfect bot lasts 12-19 minutes.
+- **Daily challenge:** seeded by the UTC date (`LevelSeed.for_daily`).
+  - The same level-30 run for everyone, with two fixed modifiers chosen by the date and the standard
+    expected hero (shop upgrades don't apply, so it's fair).
+  - One attempt per day (counted when the run starts), plus one retry for a rewarded ad
+    (`AdManager`). Clearing it pays a bonus. The state resets each UTC day.
 
 ## Economy and progression
 

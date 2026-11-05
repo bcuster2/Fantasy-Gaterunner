@@ -262,6 +262,74 @@ func _claim_milestone(level: int) -> Dictionary:
 	return reward
 
 
+# --- Endless ----------------------------------------------------------------------------------
+
+## Records an endless run. Returns true if it set a new best score.
+func record_endless(score: int, distance: float, payout: int, kills: int, seconds: float) -> bool:
+	_record_stats(kills, seconds)
+	add_coins(payout)
+	var hs: Dictionary = data["high_scores"]
+	var best := score > int(hs["endless_score"])
+	if best:
+		hs["endless_score"] = score
+	hs["endless_distance"] = maxi(int(hs["endless_distance"]), int(distance))
+	save_soon()
+	return best
+
+
+# --- Daily challenge --------------------------------------------------------------------------
+
+## Today's daily state (resets automatically when the date changes).
+func daily(date: String) -> Dictionary:
+	var d: Dictionary = data["daily"]
+	if String(d.get("date", "")) != date:
+		data["daily"] = {"date": date, "attempts": 0, "retry_used": false, "completed": false, "best_score": 0}
+		save_soon()
+	return data["daily"]
+
+
+## One attempt per day, plus one more after watching a rewarded ad (retry_used).
+func daily_can_play(date: String) -> bool:
+	var d := daily(date)
+	if bool(d["completed"]):
+		return false
+	return int(d["attempts"]) == 0 or (bool(d["retry_used"]) and int(d["attempts"]) == 1)
+
+
+func daily_can_retry(date: String) -> bool:
+	var d := daily(date)
+	return not bool(d["completed"]) and int(d["attempts"]) >= 1 and not bool(d["retry_used"])
+
+
+func grant_daily_retry(date: String) -> void:
+	daily(date)["retry_used"] = true
+	save_now()
+
+
+## Called when a daily run starts, so quitting mid-run still uses the attempt.
+func start_daily_attempt(date: String) -> void:
+	var d := daily(date)
+	d["attempts"] = int(d["attempts"]) + 1
+	save_now()
+
+
+func record_daily_result(date: String, won: bool, score: int, payout: int, kills: int, seconds: float) -> void:
+	var d := daily(date)
+	_record_stats(kills, seconds)
+	add_coins(payout)
+	d["best_score"] = maxi(int(d["best_score"]), score)
+	if won:
+		d["completed"] = true
+	save_soon()
+
+
+func _record_stats(kills: int, seconds: float) -> void:
+	var stats: Dictionary = data["stats"]
+	stats["runs"] = int(stats["runs"]) + 1
+	stats["kills"] = int(stats["kills"]) + kills
+	stats["seconds_played"] = float(stats["seconds_played"]) + seconds
+
+
 # --- Settings ---------------------------------------------------------------------------------
 
 func setting(key: String) -> bool:

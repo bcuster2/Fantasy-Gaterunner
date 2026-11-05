@@ -18,7 +18,8 @@ const ROLE_FALLBACKS := {
 }
 
 
-static func build(level: int, seed_value: int, db: Dictionary, balance: Dictionary) -> Dictionary:
+## options: { "modifiers": Array } forces the level's modifiers (daily challenge).
+static func build(level: int, seed_value: int, db: Dictionary, balance: Dictionary, options: Dictionary = {}) -> Dictionary:
 	var started := Time.get_ticks_usec()
 	level = maxi(1, level)
 	var rng := RandomNumberGenerator.new()
@@ -39,6 +40,8 @@ static func build(level: int, seed_value: int, db: Dictionary, balance: Dictiona
 	mod_rng.seed = seed_value ^ 0x5BD1E995
 	ctx["mod_rng"] = mod_rng
 	ctx["modifiers"] = pick_modifiers(level, db, balance, mod_rng)
+	if options.has("modifiers"):
+		ctx["modifiers"] = (options["modifiers"] as Array).duplicate()
 	ctx["modifier_defs"] = db["modifiers"]
 
 	var template := GenUtil.pick_weighted(rng, _templates(db), level)

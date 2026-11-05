@@ -53,6 +53,26 @@ func _ready() -> void:
 	_check(not reward.is_empty() and SaveManager.unlocked_level() == 31 and SaveManager.perks().has("thick_hide"), "milestone claimed, perk granted, level unlocked")
 	_check(SaveManager.record_campaign_run(30, true, 0, 0, 1.0).is_empty(), "milestone only claimed once")
 
+	# Daily challenge: one attempt, one ad retry, then locked; resets with the date.
+	var day := "2030-01-01"
+	_check(SaveManager.daily_can_play(day) and not SaveManager.daily_can_retry(day), "daily: fresh day playable")
+	SaveManager.start_daily_attempt(day)
+	_check(not SaveManager.daily_can_play(day) and SaveManager.daily_can_retry(day), "daily: after a loss, retry offered")
+	SaveManager.grant_daily_retry(day)
+	_check(SaveManager.daily_can_play(day), "daily: retry grants one more attempt")
+	SaveManager.start_daily_attempt(day)
+	_check(not SaveManager.daily_can_play(day) and not SaveManager.daily_can_retry(day), "daily: no third attempt")
+	SaveManager.record_daily_result(day, true, 900, 50, 10, 60.0)
+	_check(bool(SaveManager.daily(day)["completed"]) and int(SaveManager.daily(day)["best_score"]) == 900, "daily: win recorded")
+	_check(SaveManager.daily_can_play("2030-01-02"), "daily: new date resets")
+	_check(LevelGenerator.get_daily_plan(day)["seed"] == LevelGenerator.get_daily_plan(day)["seed"] and LevelGenerator.get_daily_plan(day)["modifiers"] == LevelGenerator.get_daily_plan(day)["modifiers"], "daily: plan deterministic")
+	_check(LevelGenerator.get_daily_plan(day)["seed"] != LevelGenerator.get_daily_plan("2030-01-02")["seed"], "daily: different days differ")
+
+	# Endless high scores.
+	_check(SaveManager.record_endless(1200, 900.0, 40, 300, 120.0), "endless: first score is a best")
+	_check(not SaveManager.record_endless(800, 950.0, 10, 100, 60.0), "endless: lower score is not a best")
+	_check(int(SaveManager.data["high_scores"]["endless_score"]) == 1200 and int(SaveManager.data["high_scores"]["endless_distance"]) == 950, "endless: bests kept")
+
 	_clean(dir)
 	SaveManager.save_dir = real_dir
 	SaveManager.data = real_data

@@ -9,10 +9,21 @@ const START_Z := 40.0
 const END_PAD := 110.0
 
 
-## arena_d < 0: plain finish line at `length`. Otherwise the arena starts at arena_d.
+## A whole level: track from just behind the start to past the end. arena_d < 0: plain finish line at
+## `length`; otherwise the boss arena starts at arena_d.
 static func build(parent: Node3D, length: float, half_width: float, seed_value: int, zone: Dictionary, arena_d := -1.0) -> void:
-	var total := length + START_Z + END_PAD
-	var center_z := START_Z - total * 0.5
+	build_range(parent, -START_Z, length + END_PAD, half_width, seed_value, zone)
+	if arena_d >= 0.0:
+		build_arena(parent, arena_d, half_width, zone)
+	else:
+		_build_finish(parent, length, half_width)
+
+
+## Track, ground, curbs and props covering distances [from_d, to_d] (endless mode builds the world
+## chunk by chunk with this).
+static func build_range(parent: Node3D, from_d: float, to_d: float, half_width: float, seed_value: int, zone: Dictionary) -> void:
+	var total := to_d - from_d
+	var center_z := -(from_d + to_d) * 0.5
 
 	var grass := MeshInstance3D.new()
 	var grass_mesh := PlaneMesh.new()
@@ -40,17 +51,13 @@ static func build(parent: Node3D, length: float, half_width: float, seed_value: 
 	for side in [-1.0, 1.0]:
 		parent.add_child(Placeholders.part(Placeholders.box(Vector3(0.4, 0.4, total)), curb_mat, Vector3(side * (half_width + 0.2), 0.2, center_z)))
 
-	_build_props(parent, length, half_width, seed_value, zone)
-	if arena_d >= 0.0:
-		_build_arena(parent, arena_d, half_width, zone)
-	else:
-		_build_finish(parent, length, half_width)
+	_build_props(parent, from_d, to_d, half_width, seed_value, zone)
 
 
 # --- Props ------------------------------------------------------------------------------------
 
 ## Each prop type is a list of parts; every part becomes one MultiMesh (one draw call).
-static func _build_props(parent: Node3D, length: float, half_width: float, seed_value: int, zone: Dictionary) -> void:
+static func _build_props(parent: Node3D, from_d: float, to_d: float, half_width: float, seed_value: int, zone: Dictionary) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
 	var props: Array = zone.get("props", ["pines"])
@@ -58,8 +65,8 @@ static func _build_props(parent: Node3D, length: float, half_width: float, seed_
 	var color_b := ZoneTheme.color(zone, "prop_color_b", Color("#4E9A42"))
 	var accent := ZoneTheme.color(zone, "edge", Color("#FF8A3D"))
 	var batches := {}
-	var z := START_Z
-	while z > -(length + END_PAD):
+	var z := -from_d
+	while z > -to_d:
 		for side in [-1.0, 1.0]:
 			for layer in 2:
 				if rng.randf() > 0.8:
@@ -156,7 +163,7 @@ static func _build_finish(parent: Node3D, length: float, half_width: float) -> v
 
 
 ## Arena: a line of braziers where the hero stops, and a stone dais under the boss.
-static func _build_arena(parent: Node3D, arena_d: float, half_width: float, zone: Dictionary) -> void:
+static func build_arena(parent: Node3D, arena_d: float, half_width: float, zone: Dictionary) -> void:
 	var z := -arena_d
 	var stone := Placeholders.mat(ZoneTheme.color(zone, "curb", Color("#9C978C")).darkened(0.15))
 	var flame := Placeholders.mat(ZoneTheme.color(zone, "edge", Color("#FF8A3D")), 2.2)

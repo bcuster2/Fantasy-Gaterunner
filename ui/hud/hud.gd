@@ -154,6 +154,11 @@ func show_boss(boss_name: String, element: String, max_hp: float) -> void:
 	_punch(_boss_panel, 1.15)
 
 
+func hide_boss() -> void:
+	_boss_panel.visible = false
+	_progress.visible = true
+
+
 func set_boss_hp(hp: float, max_hp: float) -> void:
 	_boss_bar.max_value = max_hp
 	_boss_bar.value = hp
@@ -192,9 +197,9 @@ func hide_hint() -> void:
 
 
 ## buttons: [[label, callable], ...] built by Run (next / replay / upgrades / map).
-func show_result(won: bool, body: String, buttons: Array) -> void:
-	_show_overlay("VICTORY!" if won else "DEFEATED", body, buttons)
-	_overlay_title.modulate = Color("#FFD166") if won else Color("#FF6B6B")
+func show_result(won: bool, body: String, buttons: Array, title := "") -> void:
+	_show_overlay(title if title != "" else ("VICTORY!" if won else "DEFEATED"), body, buttons)
+	_overlay_title.modulate = Color("#FFD166") if won or title.contains("BEST") else Color("#FF6B6B")
 	_overlay_body.add_theme_font_size_override("font_size", 36)
 
 

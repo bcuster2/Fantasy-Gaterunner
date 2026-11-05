@@ -260,5 +260,22 @@
 		"hit_stop_cooldown": 0.25,
 		"phase_hit_stop": 0.18,
 		"death_hit_stop": 0.25
+	},
+	"endless": {
+		"_doc": "Endless: one unbounded run stitched from generated levels (chunks). Tier = level used to generate a chunk; it starts at start_ratio x the player's unlocked campaign level and rises tier_step per chunk. Every boss_every-th chunk keeps its boss (~3 minutes). Builds carry over, so each chunk's enemies scale with the hero's actual DPS/HP vs. what a normal level at that tier builds to (a build keeps at most max_edge of advantage), times hp_growth/dmg_growth per chunk. Score = meters + kills.",
+		"start_ratio": 0.5,
+		"tier_step": 2,
+		"boss_every": 3,
+		"generate_ahead": 160.0,
+		"cleanup_behind": 120.0,
+		"hp_growth": 1.2,
+		"dmg_growth": 1.16,
+		"max_edge": 2.5
+	},
+	"daily": {
+		"_doc": "Daily challenge: seeded by the UTC date, same for every player: fixed level tier, two fixed modifiers, and the expected-upgrade hero (shop upgrades don't apply, so it's fair). One attempt plus one retry for a rewarded ad. Win bonus = bonus_base x coin curve at the player's unlocked level.",
+		"level": 30,
+		"modifier_count": 2,
+		"bonus_base": 400
 	}
 }

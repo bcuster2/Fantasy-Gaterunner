@@ -122,6 +122,22 @@ static func _effect_value(effect: Dictionary) -> String:
 
 
 static func num(value: float) -> String:
+	if absf(value) >= 100000.0:
+		return compact(value)
 	if is_equal_approx(value, roundf(value)):
 		return str(int(roundf(value)))
 	return ("%.2f" % value).rstrip("0").rstrip(".")
+
+
+## Short form for huge numbers (endless builds compound): 123.4K, 5.6M, 7.8B, 9.1T, then 1.2e15.
+static func compact(value: float) -> String:
+	var sign_text := "-" if value < 0.0 else ""
+	var v := absf(value)
+	var units := [[1e12, "T"], [1e9, "B"], [1e6, "M"], [1e3, "K"]]
+	if v >= 1e15:
+		var exponent := int(floor(log(v) / log(10.0)))
+		return "%s%.1fe%d" % [sign_text, v / pow(10.0, exponent), exponent]
+	for unit: Array in units:
+		if v >= float(unit[0]):
+			return "%s%.1f%s" % [sign_text, v / float(unit[0]), unit[1]]
+	return sign_text + str(int(roundf(v)))

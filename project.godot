@@ -24,6 +24,7 @@ GameState="*res://autoload/game_state.gd"
 AudioManager="*res://autoload/audio_manager.gd"
 LevelGenerator="*res://autoload/level_generator.gd"
 SaveManager="*res://autoload/save_manager.gd"
+AdManager="*res://autoload/ad_manager.gd"
 
 [display]
 

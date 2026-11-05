@@ -1,15 +1,18 @@
 extends Screen
-## Game modes: campaign now; endless and daily challenge arrive in Milestone 7.
+## Game modes: campaign, endless, daily challenge.
 
 
 func build() -> void:
 	header("GAME MODES", "menu")
 	content.add_child(_mode_card("CAMPAIGN", "Numbered levels, forever. Level %d unlocked." % SaveManager.unlocked_level(),
 		Color("#E67E22"), func() -> void: GameState.go("map"), true))
-	content.add_child(_mode_card("ENDLESS", "One run, rising difficulty, bosses every few minutes.\nComing soon.",
-		Color("#8E44AD"), func() -> void: pass, false))
-	content.add_child(_mode_card("DAILY CHALLENGE", "A new seeded run every day. One try (plus a retry).\nComing soon.",
-		Color("#16A085"), func() -> void: pass, false))
+	var best := int(SaveManager.data["high_scores"]["endless_score"])
+	content.add_child(_mode_card("ENDLESS", "One run, rising difficulty, a boss every few minutes. Best score: %s" % GateInfo.num(float(best)),
+		Color("#8E44AD"), func() -> void: GameState.go("endless"), true))
+	var today := LevelGenerator.today_utc()
+	var daily_state := SaveManager.daily(today)
+	var daily_text := "Same seeded run for everyone today. " + ("Cleared!" if bool(daily_state["completed"]) else ("Ready to play." if SaveManager.daily_can_play(today) else "Come back tomorrow."))
+	content.add_child(_mode_card("DAILY CHALLENGE", daily_text, Color("#16A085"), func() -> void: GameState.go("daily"), true))
 	content.add_child(spacer())
 
 
