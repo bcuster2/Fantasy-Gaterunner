@@ -79,7 +79,9 @@
 		"follow_smoothing": 9.0,
 		"pushback": 1.6,
 		"summon_pop_time": 0.35,
-		"back_spread": 1.6
+		"back_spread": 1.6,
+		"charge_range": 7.0,
+		"charge_width": 1.6
 	},
 	"curves": {
 		"_doc": "Difficulty as functions of level N: value = base * (1 + linear * (N-1)^exponent), clamped to cap (0 = no cap). Tune here, then run the simulator to see the effect across levels 1-500.",

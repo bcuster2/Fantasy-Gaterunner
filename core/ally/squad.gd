@@ -18,6 +18,8 @@ var _back := 1.5
 var _spacing := 1.15
 var _back_spread := 1.6
 var _tint := Color("#9FE8FF")
+var _charge_range := 7.0
+var _charge_width := 1.6
 
 
 func setup() -> void:
@@ -28,6 +30,8 @@ func setup() -> void:
 	_back = Balance.f("allies.back_offset")
 	_spacing = Balance.f("allies.spacing")
 	_back_spread = Balance.f("allies.back_spread")
+	_charge_range = Balance.f("allies.charge_range")
+	_charge_width = Balance.f("allies.charge_width")
 
 
 ## Spawns/removes allies so the live squad matches stats.allies. Returns the number spawned.
@@ -40,7 +44,7 @@ func reconcile(stats: HeroStats, hero_pos: Vector3) -> int:
 		var missing := int(stats.allies[id]) - int(live.get(id, 0))
 		for i in missing:
 			var a := _pool.acquire() as Ally
-			a.spawn(id, Content.ally(id), hero_pos + Vector3(randf_range(-0.5, 0.5), 0, 0), stats.ally_power)
+			a.spawn(id, Content.ally(id), hero_pos + Vector3(randf_range(-0.5, 0.5), 0, 0), stats.ally_damage_power(), stats.ally_hp_power())
 			a.set_element_tint(_tint)
 			allies.append(a)
 			spawned += 1
@@ -67,6 +71,12 @@ func tick(delta: float, hero_pos: Vector3, enemies: Array[Enemy], boss: Boss = n
 	for a in allies:
 		if not a.active:
 			continue
+		if a.kind != "ranged":
+			# Melee allies charge enemies coming down their lane instead of waiting to be bumped.
+			var prey := _charge_target(a, hero_pos, enemies)
+			a.charging = prey != null
+			if prey:
+				a.charge_to = Vector2(prey.position.x, prey.position.z + prey.radius + a.radius + 0.3)
 		a.follow(delta, hero_pos, _half_width, _smoothing)
 		if not a.attack_ready():
 			continue
@@ -136,6 +146,25 @@ func _melee_target(a: Ally, enemies: Array[Enemy]) -> Enemy:
 		if dz < -0.6 or dz > a.attack_range + e.radius:
 			continue
 		if absf(e.position.x - a.position.x) > 0.9 + e.radius:
+			continue
+		if dz < best_dz:
+			best_dz = dz
+			best = e
+	return best
+
+
+## Nearest enemy ahead of this ally's formation slot, inside its lane and the leash range.
+func _charge_target(a: Ally, hero_pos: Vector3, enemies: Array[Enemy]) -> Enemy:
+	var home := Vector2(hero_pos.x + a.slot.x, hero_pos.z + a.slot.y)
+	var best: Enemy = null
+	var best_dz := INF
+	for e in enemies:
+		if not e.active:
+			continue
+		var dz := home.y - e.position.z
+		if dz < -0.5 or dz > _charge_range:
+			continue
+		if absf(e.position.x - home.x) > _charge_width + e.radius:
 			continue
 		if dz < best_dz:
 			best_dz = dz

@@ -120,6 +120,8 @@ func _economy(rows: Array[Dictionary], balance: Dictionary) -> Array[Dictionary]
 						pri = 1.05 if levels[id] < n / 6.0 else 0.0
 					"weak_bonus_pct":
 						pri = 0.95 if levels[id] < n / 8.0 else 0.0
+					"ally_damage_pct", "ally_hp_pct", "summon_bonus":
+						pri = 0.0
 					_:
 						pri = 0.92 if levels[id] < n / 40.0 else 0.0
 				if pri > best_pri or (is_equal_approx(pri, best_pri) and price < best_cost):

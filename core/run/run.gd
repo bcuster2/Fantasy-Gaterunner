@@ -57,6 +57,8 @@ var _boss_hit_stop_cd := 0.0
 var _summon_hp_mult := 1.0
 var _summon_dmg_mult := 1.0
 var _arena_time := 0.0
+## Melee ally damage dealt this run (autopilot log only).
+var _ally_dealt := 0.0
 ## Shop coin bonus (upgrades + perks) applied to the payout at the end.
 var _coin_bonus := 1.0
 var _ended := false
@@ -379,6 +381,7 @@ func _aim_direction(origin: Vector3) -> Vector3:
 
 
 func _on_ally_melee(ally: Ally, enemy: Enemy) -> void:
+	_ally_dealt += ally.damage
 	_damage_enemy(enemy, ally.damage, hero.stats.element, enemy.position + Vector3(0, enemy.hit_height, 0))
 	AudioManager.play("hit", 0.0, 0.2, 0.05)
 
@@ -515,6 +518,7 @@ func _collide_allies(e: Enemy) -> bool:
 		if absf(e.position.z - a.position.z) < reach and absf(e.position.x - a.position.x) < reach:
 			if a.take_damage(e.contact_damage):
 				_on_ally_died(a)
+			_ally_dealt += a.contact_damage
 			_damage_enemy(e, a.contact_damage, hero.stats.element, e.position + Vector3(0, e.hit_height, 0))
 			if e.active:
 				e.knock_back(Balance.f("enemy.knockback"))
@@ -690,7 +694,7 @@ func _log_result(outcome: String) -> void:
 	print("[run] %s at %.0fm after %.1fs | hp %.0f | kills %d | coins %d | dmg %.1f rate %.1f shots %d | %s | allies %s" % [
 		outcome, -hero.position.z, _elapsed, s.hp, kills, coins, s.damage, s.fire_rate, s.projectiles, s.element, s.allies,
 	])
-	print("[run] damage taken by source: %s" % _damage_log)
+	print("[run] damage taken by source: %s | melee ally damage dealt %d" % [_damage_log, int(_ally_dealt)])
 	if boss:
 		print("[run] boss %s hp %d/%d, fight %.1fs" % [boss.boss_id, int(boss.hp), int(boss.max_hp), _elapsed - _arena_time])
 
@@ -1102,6 +1106,7 @@ func _on_projectile_boss_hit(damage: float, at: Vector3, element: String) -> voi
 
 func _on_ally_melee_boss(ally: Ally) -> void:
 	if boss:
+		_ally_dealt += ally.damage * 0.6
 		_damage_boss(ally.damage * 0.6, hero.stats.element, boss.position + Vector3(0, boss.hit_height, boss.radius))
 
 

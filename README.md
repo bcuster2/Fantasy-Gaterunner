@@ -314,8 +314,15 @@ See [docs/BALANCE.md](docs/BALANCE.md) for the targets and the pass-1 results.
 - **Coins** come from kills and the boss (×`coin_multiplier` curve). A win adds a victory bonus, and
   Treasure Sense/perks multiply the total. Losses keep what you collected (`economy.loss_keep`).
 - **Upgrades** (`data/upgrades.json`):
-  - Arcane Power (+damage %), Vitality (+max HP %), Necromancy (start with skeletons), Treasure Sense
-    (+coins %), Element Mastery (+weakness damage %).
+  - Arcane Power (+damage %), Vitality (+max HP %), Treasure Sense (+coins %), Element Mastery
+    (+weakness damage %).
+  - Summoner track: Necromancy (start with skeletons), Legion (+1 ally from every summon gate),
+    Bone Forge (+ally damage %) and Grave Armor (+ally HP %). Allies already scale with the level's
+    `player_power`, and these upgrades stack on top of that. Spending coins on summons instead of
+    Arcane Power is about even at levels 30-50. Past level 100 it is stronger, mostly from army size.
+    The fairness hero and the simulator's typical player buy none of these upgrades.
+  - Melee allies charge enemies within `allies.charge_range` of their slot and lane. They don't wait
+    to be run into.
   - Cost to buy level L+1 = `cost_base × (L+1)^cost_exp`. Past `soft_cap` each level gives `after_cap`
     instead of `per_level`.
   - The simulator's economy model checks that a typical player's upgrades track the generator's

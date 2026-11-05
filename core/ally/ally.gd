@@ -16,6 +16,9 @@ var contact_damage := 1.0
 var radius := 0.4
 ## Formation offset from the hero: (x, z). Negative z is ahead of the hero.
 var slot := Vector2.ZERO
+## Set by Squad each frame: when charging, the ally runs to charge_to (x, z) instead of its slot.
+var charging := false
+var charge_to := Vector2.ZERO
 
 var _cooldown := 0.0
 var _flash := 0.0
@@ -34,7 +37,7 @@ func _init() -> void:
 	add_child(Placeholders.blob_shadow(0.45))
 
 
-func spawn(id: String, ally_def: Dictionary, at: Vector3, power_mult := 1.0) -> void:
+func spawn(id: String, ally_def: Dictionary, at: Vector3, damage_mult := 1.0, hp_mult := 1.0) -> void:
 	def = ally_def
 	if id != ally_id:
 		ally_id = id
@@ -47,12 +50,12 @@ func spawn(id: String, ally_def: Dictionary, at: Vector3, power_mult := 1.0) -> 
 		Placeholders.collect_meshes(_model, _meshes)
 	kind = String(def.get("kind", "melee"))
 	row = String(def.get("row", "front"))
-	max_hp = float(def.get("hp", 20)) * power_mult
+	max_hp = float(def.get("hp", 20)) * hp_mult
 	hp = max_hp
-	damage = float(def.get("damage", 5)) * power_mult
+	damage = float(def.get("damage", 5)) * damage_mult
 	attack_rate = float(def.get("attack_rate", 1.0))
 	attack_range = float(def.get("range", 1.5))
-	contact_damage = float(def.get("contact_damage", 5)) * power_mult
+	contact_damage = float(def.get("contact_damage", 5)) * damage_mult
 	radius = float(def.get("radius", 0.4)) * float(def.get("scale", 1.0))
 	position = at
 	_cooldown = randf() / maxf(attack_rate, 0.01)
@@ -60,6 +63,7 @@ func spawn(id: String, ally_def: Dictionary, at: Vector3, power_mult := 1.0) -> 
 	_pop = 1.0
 	_flash = 0.0
 	_set_flash(false)
+	charging = false
 	active = true
 	visible = true
 
@@ -71,9 +75,10 @@ func set_element_tint(color: Color) -> void:
 
 
 func follow(delta: float, hero_pos: Vector3, half_width: float, smoothing: float) -> void:
-	var target_x := clampf(hero_pos.x + slot.x, -half_width, half_width)
-	position.x = lerpf(position.x, target_x, 1.0 - exp(-smoothing * delta))
-	position.z = lerpf(position.z, hero_pos.z + slot.y, 1.0 - exp(-smoothing * 1.5 * delta))
+	var goal := charge_to if charging else Vector2(hero_pos.x + slot.x, hero_pos.z + slot.y)
+	var speed := smoothing * (0.7 if charging else 1.0)
+	position.x = lerpf(position.x, clampf(goal.x, -half_width, half_width), 1.0 - exp(-speed * delta))
+	position.z = lerpf(position.z, goal.y, 1.0 - exp(-speed * 1.5 * delta))
 	_anim += delta * 11.0
 	_cooldown -= delta
 	_swing = maxf(0.0, _swing - delta * 5.0)

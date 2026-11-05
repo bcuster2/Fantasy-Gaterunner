@@ -39,6 +39,42 @@
 			100000
 		]
 	},
+	"summon_count": {
+		"name": "Legion",
+		"desc": "Summon gates raise {effect} extra allies",
+		"stat": "summon_bonus",
+		"per_level": 1,
+		"max_level": 3,
+		"cost_list": [
+			2000,
+			12000,
+			60000
+		]
+	},
+	"summon_damage": {
+		"name": "Bone Forge",
+		"desc": "+{effect}% ally damage",
+		"stat": "ally_damage_pct",
+		"per_level": 8,
+		"soft_cap": 30,
+		"after_cap": 3,
+		"max_level": 0,
+		"cost_base": 30,
+		"cost_exp": 1.25,
+		"cost_softcap_mult": 1.0
+	},
+	"summon_health": {
+		"name": "Grave Armor",
+		"desc": "+{effect}% ally HP",
+		"stat": "ally_hp_pct",
+		"per_level": 8,
+		"soft_cap": 30,
+		"after_cap": 2,
+		"max_level": 0,
+		"cost_base": 25,
+		"cost_exp": 1.25,
+		"cost_softcap_mult": 1.0
+	},
 	"coins": {
 		"name": "Treasure Sense",
 		"desc": "+{effect}% coins",

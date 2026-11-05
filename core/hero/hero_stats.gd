@@ -13,6 +13,11 @@ var element := "none"
 var allies: Dictionary = {}
 ## Multiplier on ally hp/damage (scales with level so summons stay relevant).
 var ally_power := 1.0
+## Shop upgrades (Bone Forge / Grave Armor) on top of ally_power.
+var ally_damage_mult := 1.0
+var ally_hp_mult := 1.0
+## Extra allies from every summon gate (Legion upgrade).
+var summon_bonus := 0
 
 
 static func from_class(def: Dictionary) -> HeroStats:
@@ -36,6 +41,9 @@ func copy() -> HeroStats:
 	s.element = element
 	s.allies = allies.duplicate()
 	s.ally_power = ally_power
+	s.ally_damage_mult = ally_damage_mult
+	s.ally_hp_mult = ally_hp_mult
+	s.summon_bonus = summon_bonus
 	return s
 
 
@@ -46,7 +54,7 @@ func apply_gate(gate: Dictionary, limits: Dictionary) -> void:
 		"element":
 			element = String(gate.get("element", "none"))
 		"summon":
-			add_allies(String(gate.get("ally", "")), int(gate.get("count", 1)), int(limits.get("max_allies", 12)))
+			add_allies(String(gate.get("ally", "")), int(gate.get("count", 1)) + summon_bonus, int(limits.get("max_allies", 12)))
 		"curse":
 			for effect: Dictionary in gate.get("effects", []):
 				apply_effect(effect, limits)
@@ -118,6 +126,14 @@ func clamp_to(limits: Dictionary) -> void:
 	damage = maxf(damage, float(limits.get("min_damage", 1.0)))
 	fire_rate = clampf(fire_rate, float(limits.get("min_fire_rate", 0.5)), float(limits.get("max_fire_rate", 12.0)))
 	projectiles = clampi(projectiles, 1, int(limits.get("max_projectiles_per_volley", 9)))
+
+
+func ally_damage_power() -> float:
+	return ally_power * ally_damage_mult
+
+
+func ally_hp_power() -> float:
+	return ally_power * ally_hp_mult
 
 
 func dps() -> float:

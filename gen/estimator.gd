@@ -141,8 +141,8 @@ static func effective_dps(s: HeroStats, db: Dictionary, balance: Dictionary, aim
 	var dps := s.damage * s.fire_rate * volley * float(est_cfg.get("hero_aim", 0.7)) * aim_mult
 	for id: String in s.allies:
 		var def: Dictionary = db["allies"].get(id, {})
-		var ally := int(s.allies[id]) * float(def.get("damage", 0)) * float(def.get("attack_rate", 0)) * s.ally_power
-		dps += ally * (0.8 if String(def.get("kind", "melee")) == "ranged" else 0.5)
+		var ally := int(s.allies[id]) * float(def.get("damage", 0)) * float(def.get("attack_rate", 0)) * s.ally_damage_power()
+		dps += ally * (0.8 if String(def.get("kind", "melee")) == "ranged" else 0.65)
 	return dps
 
 
@@ -203,11 +203,11 @@ static func _engage(group: Array, s: HeroStats, policy: String, db: Dictionary, 
 	var front_allies := 0
 	for id: String in s.allies:
 		var def: Dictionary = db["allies"].get(id, {})
-		var dps := int(s.allies[id]) * float(def.get("damage", 0)) * float(def.get("attack_rate", 0)) * s.ally_power
+		var dps := int(s.allies[id]) * float(def.get("damage", 0)) * float(def.get("attack_rate", 0)) * s.ally_damage_power()
 		if String(def.get("kind", "melee")) == "ranged":
 			ranged_dps += dps * 0.8
 		else:
-			melee_dps += dps * 0.5
+			melee_dps += dps * 0.65
 			front_allies += int(s.allies[id])
 
 	var time_used := 0.0
@@ -283,7 +283,7 @@ static func _front_ally_hp(s: HeroStats, db: Dictionary) -> float:
 	for id: String in s.allies:
 		var def: Dictionary = db["allies"].get(id, {})
 		if String(def.get("kind", "melee")) != "ranged":
-			hp += int(s.allies[id]) * float(def.get("hp", 20)) * s.ally_power
+			hp += int(s.allies[id]) * float(def.get("hp", 20)) * s.ally_hp_power()
 	return hp
 
 
@@ -296,7 +296,7 @@ static func _damage_allies(s: HeroStats, amount: float, db: Dictionary) -> void:
 		var def: Dictionary = db["allies"].get(id, {})
 		if String(def.get("kind", "melee")) == "ranged":
 			continue
-		var unit_hp := float(def.get("hp", 20)) * s.ally_power
+		var unit_hp := float(def.get("hp", 20)) * s.ally_hp_power()
 		var lost := mini(int(s.allies[id]), int(floor(amount / maxf(unit_hp, 1.0))))
 		amount -= lost * unit_hp
 		for k in lost:

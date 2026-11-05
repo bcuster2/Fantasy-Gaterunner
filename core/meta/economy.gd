@@ -57,6 +57,9 @@ static func apply_to_hero(stats: HeroStats, limits: Dictionary, upgrades_db: Dic
 	stats.max_hp *= 1.0 + bonus("hp_pct", upgrades_db, levels, perks_db, perks) / 100.0
 	stats.hp = stats.max_hp
 	stats.projectiles += int(bonus("projectiles", upgrades_db, levels, perks_db, perks))
+	stats.ally_damage_mult = 1.0 + bonus("ally_damage_pct", upgrades_db, levels, perks_db, perks) / 100.0
+	stats.ally_hp_mult = 1.0 + bonus("ally_hp_pct", upgrades_db, levels, perks_db, perks) / 100.0
+	stats.summon_bonus = int(bonus("summon_bonus", upgrades_db, levels, perks_db, perks))
 	var start_allies := int(bonus("start_allies", upgrades_db, levels, perks_db, perks))
 	if start_allies > 0:
 		stats.add_allies("skeleton", start_allies, int(limits.get("max_allies", 12)))

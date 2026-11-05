@@ -37,16 +37,16 @@ static func ally_dps(stats: HeroStats, allies_db: Dictionary) -> float:
 	var dps := 0.0
 	for id: String in stats.allies:
 		var def: Dictionary = allies_db.get(id, {})
-		var uptime := 1.0 if String(def.get("kind", "melee")) == "ranged" else 0.55
+		var uptime := 1.0 if String(def.get("kind", "melee")) == "ranged" else 0.75
 		dps += int(stats.allies[id]) * float(def.get("damage", 0)) * float(def.get("attack_rate", 0)) * uptime
-	return dps * stats.ally_power
+	return dps * stats.ally_damage_power()
 
 
 static func ally_hp(stats: HeroStats, allies_db: Dictionary) -> float:
 	var hp := 0.0
 	for id: String in stats.allies:
 		hp += int(stats.allies[id]) * float(allies_db.get(id, {}).get("hp", 0))
-	return hp * stats.ally_power
+	return hp * stats.ally_hp_power()
 
 
 ## One-number estimate of build strength against an expected enemy element mix.
