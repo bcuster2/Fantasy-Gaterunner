@@ -1,0 +1,150 @@
+{
+	"_doc": "Sound ids -> files. Every file in assets/audio is original (rendered by tools/audio_forge). To use any other CC0 sound (e.g. a Kenney pack), copy it into assets/audio and point the id here. gain_db = level trim, min_interval = repeat throttle in seconds. Music loops play on the Music bus; zones pick their track by zone id.",
+	"sfx": {
+		"ally_die": {
+			"file": "res://assets/audio/sfx/ally_die.wav",
+			"gain_db": -6
+		},
+		"boss_roar": {
+			"file": "res://assets/audio/sfx/boss_roar.wav",
+			"gain_db": 0
+		},
+		"boss_slam": {
+			"file": "res://assets/audio/sfx/boss_slam.wav",
+			"gain_db": -2
+		},
+		"coin": {
+			"file": "res://assets/audio/sfx/coin.wav",
+			"gain_db": -9,
+			"min_interval": 0.035
+		},
+		"curse": {
+			"file": "res://assets/audio/sfx/curse.wav",
+			"gain_db": -2
+		},
+		"element": {
+			"file": "res://assets/audio/sfx/element.wav",
+			"gain_db": -3
+		},
+		"enemy_shot": {
+			"file": "res://assets/audio/sfx/enemy_shot.wav",
+			"gain_db": -9,
+			"min_interval": 0.08
+		},
+		"gate_bad": {
+			"file": "res://assets/audio/sfx/gate_bad.wav",
+			"gain_db": -3
+		},
+		"gate_good": {
+			"file": "res://assets/audio/sfx/gate_good.wav",
+			"gain_db": -3
+		},
+		"hit": {
+			"file": "res://assets/audio/sfx/hit.wav",
+			"gain_db": -13,
+			"min_interval": 0.04
+		},
+		"hit_weak": {
+			"file": "res://assets/audio/sfx/hit_weak.wav",
+			"gain_db": -9,
+			"min_interval": 0.05
+		},
+		"hurt": {
+			"file": "res://assets/audio/sfx/hurt.wav",
+			"gain_db": -2
+		},
+		"immune": {
+			"file": "res://assets/audio/sfx/immune.wav",
+			"gain_db": -10,
+			"min_interval": 0.08
+		},
+		"kill": {
+			"file": "res://assets/audio/sfx/kill.wav",
+			"gain_db": -7,
+			"min_interval": 0.03
+		},
+		"kill_elite": {
+			"file": "res://assets/audio/sfx/kill_elite.wav",
+			"gain_db": -4
+		},
+		"level_start": {
+			"file": "res://assets/audio/sfx/level_start.wav",
+			"gain_db": -4
+		},
+		"lose": {
+			"file": "res://assets/audio/sfx/lose.wav",
+			"gain_db": -1
+		},
+		"milestone": {
+			"file": "res://assets/audio/sfx/milestone.wav",
+			"gain_db": -1
+		},
+		"phase": {
+			"file": "res://assets/audio/sfx/phase.wav",
+			"gain_db": -2
+		},
+		"shoot": {
+			"file": "res://assets/audio/sfx/shoot.wav",
+			"gain_db": -16,
+			"min_interval": 0.06
+		},
+		"shoot_fire": {
+			"file": "res://assets/audio/sfx/shoot_fire.wav",
+			"gain_db": -16,
+			"min_interval": 0.06
+		},
+		"shoot_ice": {
+			"file": "res://assets/audio/sfx/shoot_ice.wav",
+			"gain_db": -17,
+			"min_interval": 0.06
+		},
+		"shoot_lightning": {
+			"file": "res://assets/audio/sfx/shoot_lightning.wav",
+			"gain_db": -16,
+			"min_interval": 0.06
+		},
+		"summon": {
+			"file": "res://assets/audio/sfx/summon.wav",
+			"gain_db": -3
+		},
+		"telegraph": {
+			"file": "res://assets/audio/sfx/telegraph.wav",
+			"gain_db": -8,
+			"min_interval": 0.1
+		},
+		"ui_buy": {
+			"file": "res://assets/audio/sfx/ui_buy.wav",
+			"gain_db": -3
+		},
+		"ui_click": {
+			"file": "res://assets/audio/sfx/ui_click.wav",
+			"gain_db": -8
+		},
+		"win": {
+			"file": "res://assets/audio/sfx/win.wav",
+			"gain_db": -1
+		}
+	},
+	"music": {
+		"forest": {
+			"file": "res://assets/audio/music/forest.wav",
+			"gain_db": -7
+		},
+		"crypt": {
+			"file": "res://assets/audio/music/crypt.wav",
+			"gain_db": -7
+		},
+		"volcano": {
+			"file": "res://assets/audio/music/volcano.wav",
+			"gain_db": -7
+		},
+		"boss": {
+			"file": "res://assets/audio/music/boss.wav",
+			"gain_db": -5
+		},
+		"menu": {
+			"file": "res://assets/audio/music/menu.wav",
+			"gain_db": -7
+		}
+	}
+}

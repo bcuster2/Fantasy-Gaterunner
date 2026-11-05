@@ -40,8 +40,21 @@ var fast_results := false
 ## dev menu's SKIP TO BOSS. A negative value means "just before the boss arena".
 var start_distance := 0.0
 
+var _fade: ColorRect
+var _changing := false
+
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
+	# Screen transitions: a black overlay above everything that fades out/in around scene changes.
+	var layer := CanvasLayer.new()
+	layer.layer = 100
+	add_child(layer)
+	_fade = ColorRect.new()
+	_fade.color = Color(0.03, 0.02, 0.08, 0.0)
+	_fade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(_fade)
 	assume_upgrades = bool(Balance.get_value("generator.debug_assume_upgrades", false))
 	for arg in OS.get_cmdline_user_args():
 		if arg == "--autopilot":
@@ -62,11 +75,22 @@ func _ready() -> void:
 			seed_override = int(arg.get_slice("=", 1))
 
 
-## Switches to a screen by name (see SCREENS). Always unpauses and resets time scale.
+## Switches to a screen by name (see SCREENS) with a quick fade. Always unpauses and resets time scale.
 func go(screen: String) -> void:
 	get_tree().paused = false
 	Engine.time_scale = 1.0
-	get_tree().change_scene_to_file.call_deferred(SCREENS.get(screen, SCREENS["menu"]))
+	if _changing:
+		return
+	_changing = true
+	_fade.mouse_filter = Control.MOUSE_FILTER_STOP
+	var tween := create_tween()
+	tween.tween_property(_fade, "color:a", 1.0, 0.14)
+	tween.tween_callback(func() -> void: get_tree().change_scene_to_file(SCREENS.get(screen, SCREENS["menu"])))
+	tween.tween_interval(0.05)
+	tween.tween_property(_fade, "color:a", 0.0, 0.22)
+	tween.tween_callback(func() -> void:
+		_changing = false
+		_fade.mouse_filter = Control.MOUSE_FILTER_IGNORE)
 
 
 func play_level(level_number: int) -> void:

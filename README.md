@@ -4,7 +4,8 @@ A portrait, one-thumb fantasy gate runner for Android (iOS-ready), built in **Go
 The hero auto-runs, you drag to steer, gates rewrite your build, and every level ends in a boss.
 Levels are procedurally generated from data. Level N is the same for every player.
 
-> Status: **Milestone 7: endless mode and daily challenge**. Milestones 1-6 are done.
+> Status: **Milestone 8: juice pass** (element particles, coin showers, shockwaves, chain-lightning arcs, original
+> sound and music, screen transitions). Milestones 1-7 are done.
 
 ## Running
 
@@ -24,6 +25,16 @@ write to the player's save.
 ```bash
 # play generated level 57 headless with the bot; prints a [run] summary line
 godot --headless --path . res://core/run/run.tscn --fixed-fps 60 --quit-after 9000 -- --autopilot --level=57
+```
+
+```bash
+# re-render all sound effects and music loops into assets/audio (original synth; deterministic)
+godot --headless --path . res://tools/audio_forge.tscn
+```
+
+```bash
+# CPU frame-time probe (autopilot): wall-clock avg / p95 / max frame ms, per-minute trend, node count
+godot --headless --path . --fixed-fps 60 res://tools/perf_probe.tscn -- --level=300 --seconds=60
 ```
 
 ```bash
@@ -74,7 +85,8 @@ core/
   boss/            Boss (phases, attack choice), BossArena (lane telegraphs, waves, hit resolution)
   combat/          CombatMath (pure element/power rules), ProjectileSystem (friendly shots,
                    one MultiMesh), EnemyShots (hostile shots to dodge)
-  fx/              CameraRig (trauma shake), DamageNumbers, BurstPool
+  fx/              CameraRig (trauma shake), DamageNumbers, BurstPool, Sparks (per-element particles),
+                   Shockwaves, Bolts (chain lightning), CoinShower (coin pickups)
   visuals/         Placeholders: code-built low-poly models with shared meshes/materials
   shaders/         Ground, gate, and checker shaders
   util/            JsonUtil, NodePool
@@ -327,6 +339,22 @@ See [docs/BALANCE.md](docs/BALANCE.md) for the targets and the pass-1 results.
   challenge state, stats, tutorial flag, purchases, and consent.
 
 Covered by `tools/save_test.tscn`.
+
+## Game feel and audio
+
+- **Hits:** element sparks (fire embers rise, ice shards fall, lightning crackles, arcane puffs),
+  throttled damage numbers (orange "!" for weakness hits), white hit flash, and squash.
+  Burning enemies flicker orange and slowed ones turn frosty.
+- **Chain lightning** draws jagged arcs between targets. Projectiles carry an additive glow.
+- **Kills** burst into coins that hop, home in on the hero, and fly to the HUD counter. The pickup
+  sound rises in pitch with each coin in a combo. Elites add a gold ring and sparkle.
+- **Shockwave rings** mark gates, boss slams, phase changes and boss deaths. Screen shake is trauma-based,
+  hit-stop lands on hero hits and boss hits, and vibration fires on hits, gates and boss kills.
+- **Audio** comes from `data/sounds.json`, which maps ids to files in `assets/audio` (rendered by
+  `tools/audio_forge`). There is one music loop per zone plus boss and menu loops, crossfaded on the Music bus
+  (zone changes, boss arena, menus). SFX and Music buses are muted from settings. Each shot sounds like its element.
+- **UI:** screens fade between each other, buttons squash on press with a click sound, and buying in the
+  shop has its own sound.
 
 ## Performance notes
 

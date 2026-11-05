@@ -30,6 +30,7 @@ var _lateral := 0.35
 var _flash_time := 0.07
 var _flash := 0.0
 var _flash_on := false
+var _overlay: Material = null
 var _squash := 0.0
 var _walk := 0.0
 var _age := 0.0
@@ -221,7 +222,7 @@ func _animate(delta: float) -> void:
 	_squash = maxf(0.0, _squash - delta * 5.0)
 	_body.scale = Vector3(1.0 + _squash, 1.0 - _squash, 1.0 + _squash)
 	_flash = maxf(0.0, _flash - delta)
-	if behavior != "ranged":
+	if behavior != "ranged" or _flash > 0.0:
 		_set_flash(_flash > 0.0)
 	# Frozen shiver while slowed.
 	_model.rotation.y = sin(_age * 30.0) * 0.05 if _slow_time > 0.0 else 0.0
@@ -262,10 +263,18 @@ func _refresh_label() -> void:
 	_label.text = str(ceili(maxf(hp, 0.0)))
 
 
+## Overlay priority: hit flash > burning (flickering orange) > slowed (frosty blue).
 func _set_flash(on: bool) -> void:
-	if on == _flash_on:
-		return
 	_flash_on = on
-	var m: Material = Placeholders.overlay(Color(1, 1, 1, 0.8)) if on else null
+	var m: Material = null
+	if on:
+		m = Placeholders.overlay(Color(1, 1, 1, 0.8))
+	elif _burn_time > 0.0:
+		m = Placeholders.overlay(Color(1.0, 0.45, 0.1, 0.3 if fmod(_age, 0.2) < 0.1 else 0.45))
+	elif _slow_time > 0.0:
+		m = Placeholders.overlay(Color(0.55, 0.85, 1.0, 0.45))
+	if m == _overlay:
+		return
+	_overlay = m
 	for mi in _meshes:
 		mi.material_overlay = m

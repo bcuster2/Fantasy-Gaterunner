@@ -22,6 +22,8 @@ var _dmg := PackedFloat32Array()
 var _basis: Array[Basis] = []
 var _element: Array[String] = []
 var _color: Array[Color] = []
+## Soft additive halo drawn under every projectile (second MultiMesh, still one extra draw call).
+var _glow: MultiMeshInstance3D
 
 
 func setup() -> void:
@@ -50,6 +52,24 @@ func setup() -> void:
 	m.vertex_color_use_as_albedo = true
 	material_override = m
 	cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+
+	_glow = MultiMeshInstance3D.new()
+	var gm := MultiMesh.new()
+	gm.transform_format = MultiMesh.TRANSFORM_3D
+	gm.use_colors = true
+	gm.mesh = Placeholders.sphere(0.3)
+	gm.instance_count = _max
+	gm.visible_instance_count = 0
+	gm.custom_aabb = mm.custom_aabb
+	_glow.multimesh = gm
+	var glow_mat := StandardMaterial3D.new()
+	glow_mat.shading_mode = BaseMaterial3D.SHADING_MODE_UNSHADED
+	glow_mat.vertex_color_use_as_albedo = true
+	glow_mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	glow_mat.blend_mode = BaseMaterial3D.BLEND_MODE_ADD
+	_glow.material_override = glow_mat
+	_glow.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
+	add_child(_glow)
 
 
 func spawn(origin: Vector3, direction: Vector3, damage: float, element: String, color: Color, reach := -1.0) -> void:
@@ -97,10 +117,14 @@ func tick(delta: float, enemies: Array[Enemy], boss: Boss = null) -> void:
 		i += 1
 
 	var mm := multimesh
+	var gm := _glow.multimesh
 	for k in _count:
 		mm.set_instance_transform(k, Transform3D(_basis[k], _pos[k]))
 		mm.set_instance_color(k, _color[k])
+		gm.set_instance_transform(k, Transform3D(Basis.IDENTITY, _pos[k]))
+		gm.set_instance_color(k, Color(_color[k], 0.35))
 	mm.visible_instance_count = _count
+	gm.visible_instance_count = _count
 
 
 func _remove(i: int) -> void:

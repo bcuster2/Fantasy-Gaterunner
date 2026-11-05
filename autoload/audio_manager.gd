@@ -1,17 +1,24 @@
 extends Node
-## SFX/music playback with a pooled set of players and per-sound throttling.
-## Until CC0 audio is added (Milestone 8), SFX are synthesized at startup so the game is never silent.
+## Audio: pooled SFX players with per-sound throttling, and crossfading music loops.
+## Sounds come from data/sounds.json (files in assets/audio, rendered by tools/audio_forge). The old
+## runtime synth stays as a fallback for any id without a file, so the game is never silent.
 
 const MIX_RATE := 22050
-const PLAYER_COUNT := 14
+const PLAYER_COUNT := 16
+const SILENT_DB := -40.0
 
 var sfx_enabled := true
 var music_enabled := true
 
+var _defs: Dictionary = {}
+var _music_defs: Dictionary = {}
 var _streams: Dictionary = {}
 var _players: Array[AudioStreamPlayer] = []
 var _next_player := 0
 var _last_played: Dictionary = {}
+var _music: Array[AudioStreamPlayer] = []
+var _music_index := 0
+var _current_track := ""
 
 
 func _ready() -> void:
@@ -23,23 +30,82 @@ func _ready() -> void:
 		player.bus = "SFX"
 		add_child(player)
 		_players.append(player)
+	for i in 2:
+		var m := AudioStreamPlayer.new()
+		m.bus = "Music"
+		m.volume_db = SILENT_DB
+		add_child(m)
+		_music.append(m)
+	var table := JsonUtil.load_dict("res://data/sounds.json")
+	_defs = table.get("sfx", {})
+	_music_defs = table.get("music", {})
 	_build_placeholder_sfx()
+	_prefer_files()
 
 
-## min_interval throttles rapid repeats (e.g. shots at 12/s) so the mix stays clean.
-func play(sound: String, volume_db := 0.0, pitch_jitter := 0.05, min_interval := 0.0) -> void:
-	if not sfx_enabled or not _streams.has(sound):
+## volume_db is an offset on top of the sound's gain_db; min_interval throttles rapid repeats
+## (shots at 12/s); pitch lets callers build rising combos (coins).
+func play(sound: String, volume_db := 0.0, pitch_jitter := 0.05, min_interval := 0.0, pitch := 1.0) -> void:
+	if not sfx_enabled:
 		return
+	var stream := _stream(sound)
+	if stream == null:
+		return
+	var def: Dictionary = _defs.get(sound, {})
 	var now := Time.get_ticks_msec() * 0.001
-	if min_interval > 0.0 and now - float(_last_played.get(sound, -100.0)) < min_interval:
+	var throttle := maxf(min_interval, float(def.get("min_interval", 0.0)))
+	if throttle > 0.0 and now - float(_last_played.get(sound, -100.0)) < throttle:
 		return
 	_last_played[sound] = now
 	var player := _players[_next_player]
 	_next_player = (_next_player + 1) % _players.size()
-	player.stream = _streams[sound]
-	player.volume_db = volume_db
-	player.pitch_scale = 1.0 + randf_range(-pitch_jitter, pitch_jitter)
+	player.stream = stream
+	player.volume_db = float(def.get("gain_db", 0.0)) + volume_db
+	player.pitch_scale = pitch * (1.0 + randf_range(-pitch_jitter, pitch_jitter))
 	player.play()
+
+
+## Crossfades to a music loop by id (zone id, "boss", "menu"). Unknown ids fall back to forest.
+func play_music(track: String, fade := 0.8) -> void:
+	if not _music_defs.has(track):
+		track = "forest"
+	if track == _current_track:
+		return
+	var def: Dictionary = _music_defs[track]
+	var path := String(def.get("file", ""))
+	if not ResourceLoader.exists(path):
+		return
+	var stream: AudioStream = load(path)
+	if stream is AudioStreamWAV:
+		var wav := stream as AudioStreamWAV
+		wav.loop_mode = AudioStreamWAV.LOOP_FORWARD
+		wav.loop_begin = 0
+		wav.loop_end = int(wav.get_length() * wav.mix_rate)
+	_current_track = track
+	var old := _music[_music_index]
+	_music_index = 1 - _music_index
+	var new := _music[_music_index]
+	new.stream = stream
+	new.volume_db = SILENT_DB
+	new.play()
+	var tween := create_tween().set_parallel()
+	tween.tween_property(new, "volume_db", float(def.get("gain_db", -6.0)), fade)
+	tween.tween_property(old, "volume_db", SILENT_DB, fade)
+	tween.chain().tween_callback(old.stop)
+
+
+func stop_music(fade := 0.8) -> void:
+	_current_track = ""
+	for m in _music:
+		create_tween().tween_property(m, "volume_db", SILENT_DB, fade)
+
+
+## Release every playback on quit so nothing is left referenced by the audio server.
+func _exit_tree() -> void:
+	for player in _players + _music:
+		player.stop()
+		player.stream = null
+	_streams.clear()
 
 
 func set_sfx_enabled(enabled: bool) -> void:
@@ -52,6 +118,16 @@ func set_music_enabled(enabled: bool) -> void:
 	AudioServer.set_bus_mute(AudioServer.get_bus_index("Music"), not enabled)
 
 
+func _stream(sound: String) -> AudioStream:
+	if _streams.has(sound):
+		return _streams[sound]
+	var path := String(_defs.get(sound, {}).get("file", ""))
+	if path != "" and ResourceLoader.exists(path):
+		_streams[sound] = load(path)
+		return _streams[sound]
+	return null
+
+
 func _ensure_bus(bus_name: String) -> void:
 	if AudioServer.get_bus_index(bus_name) != -1:
 		return
@@ -61,7 +137,7 @@ func _ensure_bus(bus_name: String) -> void:
 	AudioServer.set_bus_send(index, "Master")
 
 
-# --- Placeholder synthesis -------------------------------------------------------------------
+# --- Fallback synthesis (ids without a file) ---------------------------------------------------
 
 func _build_placeholder_sfx() -> void:
 	_streams["shoot"] = _wav(_tone(0.07, 1150.0, 520.0, "square", 0.16))
@@ -105,6 +181,13 @@ func _build_placeholder_sfx() -> void:
 		_tone(0.18, 330.0, 330.0, "tri", 0.4),
 		_tone(0.5, 262.0, 180.0, "tri", 0.4),
 	]))
+
+
+func _prefer_files() -> void:
+	for id: String in _defs:
+		var path := String(_defs[id].get("file", ""))
+		if path != "" and ResourceLoader.exists(path):
+			_streams.erase(id)
 
 
 func _tone(duration: float, f_start: float, f_end: float, wave: String, volume: float, noise := 0.0) -> PackedFloat32Array:

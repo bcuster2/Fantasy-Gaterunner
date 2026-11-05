@@ -23,6 +23,10 @@ var projectiles: ProjectileSystem
 var enemy_shots: EnemyShots
 var numbers: DamageNumbers
 var bursts: BurstPool
+var sparks: Sparks
+var shockwaves: Shockwaves
+var bolts: Bolts
+var coin_shower: CoinShower
 var hud: Hud
 var enemies: Array[Enemy] = []
 var gate_sets: Array[GateSet] = []
@@ -70,6 +74,9 @@ var _bosses_defeated := 0
 var _title_timer := 0.0
 var _daily_date := ""
 var _env: Environment
+var _coin_combo := 0
+var _coin_combo_timer := 0.0
+var _dust_timer := 0.0
 var _sun: DirectionalLight3D
 
 
@@ -164,6 +171,19 @@ func _ready() -> void:
 	bursts = BurstPool.new()
 	add_child(bursts)
 	bursts.setup()
+	sparks = Sparks.new()
+	add_child(sparks)
+	sparks.setup()
+	shockwaves = Shockwaves.new()
+	add_child(shockwaves)
+	shockwaves.setup()
+	bolts = Bolts.new()
+	add_child(bolts)
+	bolts.setup()
+	coin_shower = CoinShower.new()
+	add_child(coin_shower)
+	coin_shower.setup()
+	coin_shower.collected.connect(_on_coin_collected)
 
 	var enemy_root := Node3D.new()
 	enemy_root.name = "Enemies"
@@ -204,6 +224,8 @@ func _ready() -> void:
 		hero.position.z = -skip
 		while _next_event < _events.size() and float(_events[_next_event]["d"]) < skip and String(_events[_next_event].get("type", "")) != "boss":
 			_next_event += 1
+	AudioManager.play_music(String(plan.get("zone", "forest")))
+	AudioManager.play("level_start")
 	if GameState.debug_overlay:
 		_build_debug_overlay()
 	if GameState.is_dev_build():
@@ -261,6 +283,10 @@ func _process(delta: float) -> void:
 		hud.set_allies(hero.stats.ally_count(), int(_combat.get("max_allies", 12)))
 
 	numbers.tick(delta)
+	shockwaves.tick(delta)
+	bolts.tick(delta)
+	coin_shower.tick(delta, hero.position)
+	_tick_feel(delta)
 	camera.follow(hero.position, delta)
 	if _endless:
 		_tick_endless(delta, distance)
@@ -326,7 +352,7 @@ func _fire() -> void:
 		var right := Vector3(-dir.z, 0, dir.x)
 		projectiles.spawn(origin + right * (offset * spacing), dir, stats.damage, stats.element, color)
 	hero.on_fired()
-	AudioManager.play("shoot", -16.0, 0.08, 0.06)
+	AudioManager.play("shoot" if stats.element == "none" else "shoot_" + stats.element, 0.0, 0.08)
 
 
 ## Straight ahead, nudged toward the best-aligned enemy inside a narrow cone.
@@ -354,7 +380,7 @@ func _aim_direction(origin: Vector3) -> Vector3:
 
 func _on_ally_melee(ally: Ally, enemy: Enemy) -> void:
 	_damage_enemy(enemy, ally.damage, hero.stats.element, enemy.position + Vector3(0, enemy.hit_height, 0))
-	AudioManager.play("hit", -10.0, 0.2, 0.05)
+	AudioManager.play("hit", 0.0, 0.2, 0.05)
 
 
 func _on_ally_shot(ally: Ally, origin: Vector3) -> void:
@@ -364,7 +390,7 @@ func _on_ally_shot(ally: Ally, origin: Vector3) -> void:
 
 func _on_projectile_hit(e: Enemy, damage: float, at: Vector3, element: String) -> void:
 	_damage_enemy(e, damage, element, at)
-	AudioManager.play("hit", -12.0, 0.15, 0.04)
+	sparks.emit(Sparks.style_for(element), at)
 
 
 # --- Damage resolution ------------------------------------------------------------------------
@@ -378,11 +404,12 @@ func _damage_enemy(e: Enemy, base: float, element: String, at: Vector3, with_eff
 		if e.number_cooldown <= 0.0:
 			e.number_cooldown = _number_interval * 3.0
 			numbers.pop(at + Vector3(0, 0.6, 0), "IMMUNE", Color(0.75, 0.75, 0.8), 0.9)
-			AudioManager.play("immune", -8.0, 0.1, 0.08)
+			AudioManager.play("immune", 0.0, 0.1, 0.08)
 		return
 	var amount := base * mult
 	var killed := e.take_damage(amount)
 	_show_damage(e, amount, mult, at, killed)
+	AudioManager.play("hit_weak" if mult > 1.01 else "hit", 0.0, 0.15)
 	if with_effects:
 		_apply_element_effect(e, amount, element, killed)
 	if killed:
@@ -421,7 +448,8 @@ func _apply_element_effect(e: Enemy, amount: float, element: String, killed: boo
 			var radius := float(effect.get("radius", 3.0))
 			var targets := int(effect.get("targets", 1))
 			for other in _nearest_enemies(e.position, radius, targets, e):
-				bursts.burst(other.position + Vector3(0, other.hit_height, 0), Content.element_color(element))
+				bolts.spawn(e.position + Vector3(0, e.hit_height, 0), other.position + Vector3(0, other.hit_height, 0), Content.element_color(element))
+				sparks.emit("lightning", other.position + Vector3(0, other.hit_height, 0))
 				_damage_enemy(other, amount * float(effect.get("fraction", 0.5)), element, other.position + Vector3(0, other.hit_height, 0), false)
 
 
@@ -437,12 +465,18 @@ func _nearest_enemies(from: Vector3, radius: float, count: int, exclude: Enemy) 
 
 func _on_enemy_killed(e: Enemy) -> void:
 	kills += 1
-	coins += int(roundf(e.coins * Balance.f("economy.coin_multiplier", 1.0) * float(plan.get("coin_mult", 1.0))))
-	hud.set_coins(coins)
+	# Coins burst out of the enemy and fly to the hero; they're counted when they arrive.
+	var value := int(roundf(e.coins * Balance.f("economy.coin_multiplier", 1.0) * float(plan.get("coin_mult", 1.0))))
+	coin_shower.spawn(e.position, value)
 	var burst_color := Content.element_color(e.element) if e.element != "none" else e.color
 	bursts.burst(e.position + Vector3(0, 0.7, 0), burst_color)
 	camera.add_trauma(Balance.f("feel.shake_kill"))
-	AudioManager.play("kill", -6.0, 0.15, 0.03)
+	if e.elite:
+		sparks.emit("gold", e.position + Vector3(0, 1.0, 0))
+		shockwaves.spawn(e.position, Color("#FFD166"), 2.2, 0.35)
+		AudioManager.play("kill_elite")
+	else:
+		AudioManager.play("kill", 0.0, 0.15)
 
 
 # --- Enemies ----------------------------------------------------------------------------------
@@ -459,7 +493,7 @@ func _tick_enemies(delta: float) -> void:
 			var shot_color := Content.element_color(e.element) if e.element != "none" else Color("#FF5A3B")
 			enemy_shots.spawn(e.position + Vector3(0, 1.0, 0.4), hero_pos, float(e.def.get("shot_speed", 11.0)),
 				float(e.def.get("shot_damage", 8)) * e.dmg_mult, shot_color, float(e.def.get("shot_range", 24.0)))
-			AudioManager.play("enemy_shot", -10.0, 0.1, 0.1)
+			AudioManager.play("enemy_shot", 0.0, 0.1, 0.1)
 		var dz := e.position.z - hero_pos.z
 		if dz > _despawn_behind:
 			e.active = false
@@ -503,7 +537,7 @@ func _hurt_hero(amount: float) -> void:
 	if _hurt_fx_cooldown <= 0.0:
 		_hurt_fx_cooldown = Balance.f("hero.hurt_fx_cooldown")
 		camera.add_trauma(Balance.f("feel.shake_hero_hit"))
-		AudioManager.play("hurt", -2.0, 0.1)
+		AudioManager.play("hurt", 0.0, 0.1)
 		GameState.vibrate(Balance.i("feel.vibrate_ms_hit"))
 		if hero.alive:
 			_hit_stop(Balance.f("feel.hit_stop_hero_hit"))
@@ -522,8 +556,8 @@ func _on_enemy_shot_ally(ally: Ally, damage: float) -> void:
 
 func _on_ally_died(ally: Ally) -> void:
 	hero.stats.remove_ally(ally.ally_id)
-	bursts.burst(ally.position + Vector3(0, 0.8, 0), Color("#E8E2D0"))
-	AudioManager.play("ally_die", -6.0, 0.15, 0.05)
+	sparks.emit("bone", ally.position + Vector3(0, 0.8, 0))
+	AudioManager.play("ally_die", 0.0, 0.15, 0.05)
 
 
 func _sweep_enemies() -> void:
@@ -559,17 +593,19 @@ func _on_gate_taken(gate: Dictionary, old_element: String) -> void:
 	var category := GateInfo.category(gate)
 	match category:
 		"element":
-			AudioManager.play("element", -2.0, 0.0)
+			AudioManager.play("element", 0.0, 0.0)
 		"summon":
-			AudioManager.play("summon", -2.0, 0.0)
+			AudioManager.play("summon", 0.0, 0.0)
 		"curse":
 			AudioManager.play("curse", 0.0, 0.0)
 			camera.add_trauma(0.35)
 		"bad":
-			AudioManager.play("gate_bad", -3.0, 0.0)
+			AudioManager.play("gate_bad", 0.0, 0.0)
 		_:
-			AudioManager.play("gate_good", -3.0, 0.0)
+			AudioManager.play("gate_good", 0.0, 0.0)
 	numbers.pop(hero.position + Vector3(0, 3.0, -1.0), GateInfo.short_text(gate), tint.lightened(0.35), 1.6, 1.2)
+	shockwaves.spawn(hero.position, tint, 4.0, 0.5)
+	GameState.vibrate(15)
 	hud.flash(tint, 0.3 if category == "curse" else 0.22)
 	camera.add_trauma(Balance.f("feel.shake_gate"))
 	bursts.burst(hero.position + Vector3(0, 1.4, -0.5), tint)
@@ -664,6 +700,8 @@ func _finish_run(won: bool) -> void:
 	if _ended:
 		return
 	_ended = true
+	coins += coin_shower.collect_all()
+	hud.set_coins(coins)
 	AdManager.on_run_completed()
 	match GameState.mode:
 		"endless":
@@ -819,6 +857,31 @@ func _build_environment() -> void:
 	_sun = sun
 
 
+# --- Feel -------------------------------------------------------------------------------------
+
+func _on_coin_collected(value: int, at: Vector3) -> void:
+	coins += value
+	hud.set_coins(coins)
+	# Quick pickups climb in pitch; the combo resets after a short pause.
+	_coin_combo = mini(_coin_combo + 1, 16)
+	_coin_combo_timer = 0.45
+	AudioManager.play("coin", 0.0, 0.0, 0.0, 1.0 + _coin_combo * 0.035)
+	if not camera.is_position_behind(at):
+		hud.coin_fly(camera.unproject_position(at))
+
+
+func _tick_feel(delta: float) -> void:
+	_coin_combo_timer -= delta
+	if _coin_combo_timer <= 0.0:
+		_coin_combo = 0
+	# Footstep dust while running.
+	if hero.alive and not _in_arena and state == State.RUNNING:
+		_dust_timer -= delta
+		if _dust_timer <= 0.0:
+			_dust_timer = 0.24
+			sparks.emit("dust", hero.position + Vector3(randf_range(-0.2, 0.2), 0.1, 0.3))
+
+
 # --- Endless ----------------------------------------------------------------------------------
 
 ## Builds a chunk's track (exactly its own distance range, so neighbours never overlap) and its
@@ -891,6 +954,7 @@ func _endless_score() -> int:
 
 func _apply_zone(zone: Dictionary) -> void:
 	_zone = zone
+	AudioManager.play_music(String(zone.get("id", "forest")))
 	if _env:
 		_env.background_color = ZoneTheme.color(zone, "sky", Color("#9DCBEA"))
 		_env.ambient_light_color = ZoneTheme.color(zone, "ambient", Color("#C4D3EA"))
@@ -913,6 +977,7 @@ func _resume_after_boss() -> void:
 	_in_arena = false
 	hud.hide_boss()
 	hud.show_banner("BOSS DEFEATED!", "The road goes on...", Color("#FFD166"), 1.4)
+	AudioManager.play_music(String(_zone.get("id", "forest")))
 	hero.set_running(true, 0.8)
 
 
@@ -1002,11 +1067,15 @@ func _tick_boss(delta: float, distance: float) -> void:
 		var weak := Content.weakness_of(boss.element)
 		hud.show_banner(boss.display_name.to_upper(), ("Weak to %s" % Content.element_name(weak)) if weak != "" else "", Color("#FFB3A0"), 1.6)
 		camera.add_trauma(0.4)
-		AudioManager.play("curse", 0.0, 0.0)
+		AudioManager.play("boss_roar")
+		AudioManager.play_music("boss", 0.6)
+		shockwaves.spawn(boss.position, Color("#FF5A3B"), 7.0, 0.8)
 	var orders := boss.tick(delta)
 	if state == State.RUNNING:
 		for attack: Dictionary in orders:
 			arena.execute(attack, hero.position.x, boss.lane_rng())
+			if String(attack.get("type", "")) in ["slam", "sweep"]:
+				AudioManager.play("telegraph")
 	arena.tick(delta, hero, squad.allies)
 
 
@@ -1028,7 +1097,7 @@ func _damage_boss(base: float, element: String, at: Vector3) -> void:
 
 func _on_projectile_boss_hit(damage: float, at: Vector3, element: String) -> void:
 	_damage_boss(damage, element, at)
-	AudioManager.play("hit", -10.0, 0.15, 0.04)
+	AudioManager.play("hit", 0.0, 0.15, 0.04)
 
 
 func _on_ally_melee_boss(ally: Ally) -> void:
@@ -1042,7 +1111,8 @@ func _on_boss_phase(index: int) -> void:
 	hud.flash(Color("#FF3B3B"), 0.3)
 	hud.show_banner("PHASE %d" % (index + 1), "%s grows desperate!" % boss.display_name, Color("#FF8A6B"), 1.0)
 	bursts.burst(boss.position + Vector3(0, boss.hit_height, 0), Content.element_color(boss.element))
-	AudioManager.play("curse", 0.0, 0.0)
+	shockwaves.spawn(boss.position, Color("#FF8A6B"), 9.0, 0.7)
+	AudioManager.play("phase")
 
 
 func _on_boss_defeated() -> void:
@@ -1052,9 +1122,12 @@ func _on_boss_defeated() -> void:
 	boss.visible = false
 	camera.add_trauma(1.0)
 	_hit_stop(float(_boss_cfg.get("death_hit_stop", 0.25)))
-	coins += int(roundf(float(boss.def.get("coins", 10)) * float(plan.get("coin_mult", 1.0))))
-	hud.set_coins(coins)
-	AudioManager.play("kill", 0.0, 0.0)
+	coin_shower.spawn(boss.position, int(roundf(float(boss.def.get("coins", 10)) * float(plan.get("coin_mult", 1.0)))), 24)
+	shockwaves.spawn(boss.position, Color("#FFD166"), 12.0, 0.9)
+	sparks.emit("gold", boss.position + Vector3(0, 2.0, 0))
+	AudioManager.play("boss_slam")
+	AudioManager.play("kill_elite")
+	GameState.vibrate(60)
 	_bosses_defeated += 1
 	if _endless:
 		_resume_after_boss()
@@ -1070,7 +1143,9 @@ func _on_arena_hero_hit(damage: float, at: Vector3) -> void:
 
 func _on_arena_impact(at: Vector3, tint: Color, strength: float) -> void:
 	bursts.burst(at, tint)
+	shockwaves.spawn(at, tint, 2.4, 0.35)
 	camera.add_trauma(strength * 0.5)
+	AudioManager.play("boss_slam", 0.0, 0.1, 0.12)
 
 
 func _on_boss_volley(attack: Dictionary) -> void:
@@ -1083,7 +1158,7 @@ func _on_boss_volley(attack: Dictionary) -> void:
 		var offset := (k - (count - 1) * 0.5) * (spread / maxf(count - 1, 1))
 		var dir := aim.rotated(Vector3.UP, offset)
 		enemy_shots.spawn(origin, origin + dir * 30.0, float(attack.get("speed", 12.0)), float(attack.get("damage_abs", 8.0)), tint, 32.0)
-	AudioManager.play("enemy_shot", -6.0, 0.1)
+	AudioManager.play("enemy_shot", 0.0, 0.1)
 
 
 func _on_boss_summon(attack: Dictionary) -> void:

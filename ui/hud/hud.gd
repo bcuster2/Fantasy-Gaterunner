@@ -35,6 +35,7 @@ var _banner_body: Label
 var _tip: PanelContainer
 var _tip_label: Label
 var _tip_tween: Tween
+var _flying_coins := 0
 var _banner_tween: Tween
 var _hint_time := 0.0
 var _hint_fading := false
@@ -86,6 +87,33 @@ func set_hp(hp: float, max_hp: float) -> void:
 	if dropped:
 		flash(Color(1, 0.1, 0.1), 0.28)
 		_punch(_hp_bar.get_parent(), 1.06)
+
+
+## A coin icon flying from a screen position to the coin counter (capped so it never gets busy).
+func coin_fly(from: Vector2) -> void:
+	if _flying_coins >= 10:
+		return
+	_flying_coins += 1
+	var coin := Panel.new()
+	coin.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	coin.size = Vector2(40, 40)
+	var style := UiTheme.box(Color("#FFC93C"), 20, 0)
+	style.border_color = Color("#B8860B")
+	style.set_border_width_all(4)
+	coin.add_theme_stylebox_override("panel", style)
+	coin.position = from - coin.size * 0.5
+	_coin_chip.get_parent().get_parent().get_parent().get_parent().add_child(coin)
+	var target := _coin_chip.global_position + _coin_chip.size * 0.5 - coin.size * 0.5
+	var mid := from.lerp(target, 0.4) + Vector2(randf_range(-120, 120), -160)
+	var tween := create_tween()
+	tween.tween_method(func(t: float) -> void:
+		var a := from.lerp(mid, t)
+		var b := mid.lerp(target, t)
+		coin.position = a.lerp(b, t) - coin.size * 0.5 + coin.size * 0.5 * 0.0
+		coin.scale = Vector2.ONE * lerpf(1.2, 0.7, t), 0.0, 1.0, 0.45).set_ease(Tween.EASE_IN)
+	tween.tween_callback(func() -> void:
+		_flying_coins -= 1
+		coin.queue_free())
 
 
 func set_coins(coins: int) -> void:
@@ -246,13 +274,13 @@ func show_reward(reward: Dictionary) -> void:
 	claim.focus_mode = Control.FOCUS_NONE
 	claim.add_theme_stylebox_override("normal", UiTheme.box(Color("#E67E22"), 28, 26))
 	claim.pressed.connect(func() -> void:
-		AudioManager.play("coin", 0.0, 0.0)
+		AudioManager.play("ui_buy")
 		modal.queue_free())
 	col.add_child(claim)
 	panel.pivot_offset = Vector2(430, 300)
 	panel.scale = Vector2(0.6, 0.6)
 	create_tween().tween_property(panel, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	AudioManager.play("win", 0.0, 0.0)
+	AudioManager.play("milestone")
 
 
 ## Tutorial / hint text in the lower middle of the screen.

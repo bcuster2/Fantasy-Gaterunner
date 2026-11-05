@@ -27,6 +27,7 @@ func _ready() -> void:
 	margin.add_child(content)
 	build()
 	SaveManager.coins_changed.connect(_on_coins_changed)
+	AudioManager.play_music("menu")
 
 
 func build() -> void:
@@ -78,8 +79,12 @@ func button(text: String, action: Callable, color := UiTheme.ACCENT, min_size :=
 		b.add_theme_stylebox_override("hover", UiTheme.box(color.lightened(0.12), 28, 26))
 		b.add_theme_stylebox_override("pressed", UiTheme.box(color.darkened(0.25), 28, 26))
 	b.pressed.connect(func() -> void:
-		AudioManager.play("coin", -10.0, 0.05)
+		AudioManager.play("ui_click", 0.0, 0.05)
 		action.call())
+	# Squash on press, spring back on release.
+	b.resized.connect(func() -> void: b.pivot_offset = b.size * 0.5)
+	b.button_down.connect(func() -> void: create_tween().tween_property(b, "scale", Vector2(0.95, 0.95), 0.06))
+	b.button_up.connect(func() -> void: create_tween().tween_property(b, "scale", Vector2.ONE, 0.18).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT))
 	return b
 
 

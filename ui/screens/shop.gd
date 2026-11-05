@@ -67,7 +67,7 @@ func _upgrade_card(id: String) -> PanelContainer:
 	col.add_child(text)
 	var buy := button("MAX" if price < 0 else Screen._format_coins(price), func() -> void:
 		if SaveManager.buy_upgrade(id):
-			AudioManager.play("gate_good", -4.0, 0.0)
+			AudioManager.play("ui_buy")
 			_show(_tab), Color("#27AE60"), Vector2(230, 130))
 	buy.disabled = price < 0 or SaveManager.coins() < price
 	row.add_child(buy)
